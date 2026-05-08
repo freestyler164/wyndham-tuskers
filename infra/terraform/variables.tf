@@ -31,7 +31,7 @@ variable "az_count" {
 variable "enable_nat_gateway" {
   description = "Place ECS tasks in private subnets with NAT egress. Disable for a lower-cost public-subnet setup."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "image_tag" {

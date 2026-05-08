@@ -5,7 +5,7 @@ image_tag                  = "latest"
 desired_count              = 1
 max_capacity               = 3
 autoscaling_enabled        = true
-enable_nat_gateway         = true
+enable_nat_gateway         = false
 ses_sender_email           = "club@wyndhamtuskers.org"
 enable_member_registration = false
 
