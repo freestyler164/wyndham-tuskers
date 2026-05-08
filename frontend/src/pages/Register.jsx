@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { API_URL } from '../api.js';
+import { API_URL, fetchJson } from '../api.js';
 
 function Register() {
   const [email, setEmail] = useState('');
@@ -12,6 +12,15 @@ function Register() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [message, setMessage] = useState('');
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchJson('/config')
+      .then((config) => setRegistrationOpen(Boolean(config.enableMemberRegistration)))
+      .catch(() => setRegistrationOpen(false))
+      .finally(() => setConfigLoaded(true));
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -42,6 +51,14 @@ function Register() {
     <div className="auth-shell">
       <section className="auth-card">
         <h1>Register</h1>
+        {configLoaded && !registrationOpen ? (
+          <>
+            <p className="form-note">Member registration is currently closed.</p>
+            <p className="form-note">
+              Already a member? <Link to="/login">Log in</Link>
+            </p>
+          </>
+        ) : (
         <form onSubmit={handleSubmit}>
           <label>Email</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -73,9 +90,12 @@ function Register() {
           <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
           <button type="submit" className="btn btn-primary">Create account</button>
         </form>
-        <p className="form-note">
-          Already a member? <Link to="/login">Log in</Link>
-        </p>
+        )}
+        {(!configLoaded || registrationOpen) && (
+          <p className="form-note">
+            Already a member? <Link to="/login">Log in</Link>
+          </p>
+        )}
         {message && <p className="message">{message}</p>}
       </section>
     </div>

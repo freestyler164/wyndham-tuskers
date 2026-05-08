@@ -22,6 +22,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'wyndham-tuskers-backend' });
 });
 
+app.get('/api/config', (req, res) => {
+  res.json({
+    enableMemberRegistration: process.env.ENABLE_MEMBER_REGISTRATION === 'true',
+  });
+});
+
 app.use('/api/auth', authRouter);
 app.use('/api/surveys', surveyRouter);
 app.use('/api/events', eventRouter);

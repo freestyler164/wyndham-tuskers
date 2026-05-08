@@ -17,11 +17,12 @@ const homePhotos = [
 function Home() {
   const [items, setItems] = useState([]);
   const [events, setEvents] = useState([]);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.allSettled([fetchJson('/surveys'), fetchJson('/events')])
-      .then(([formsResult, eventsResult]) => {
+    Promise.allSettled([fetchJson('/surveys'), fetchJson('/events'), fetchJson('/config')])
+      .then(([formsResult, eventsResult, configResult]) => {
         if (formsResult.status === 'fulfilled') {
           const sorted = [...formsResult.value].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
           setItems(sorted);
@@ -31,6 +32,10 @@ function Home() {
 
         if (eventsResult.status === 'fulfilled') {
           setEvents(eventsResult.value);
+        }
+
+        if (configResult.status === 'fulfilled') {
+          setRegistrationOpen(Boolean(configResult.value.enableMemberRegistration));
         }
       })
       .catch((err) => setError(err.message));
@@ -63,7 +68,7 @@ function Home() {
         </div>
 
         <div className="hero-primary-actions">
-          <Link className="btn btn-primary" to="/register">Become a member</Link>
+          {registrationOpen && <Link className="btn btn-primary" to="/register">Become a member</Link>}
           <Link className="btn btn-secondary" to="/gallery">View gallery</Link>
         </div>
 

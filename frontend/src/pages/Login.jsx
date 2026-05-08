@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { API_URL } from '../api.js';
+import { API_URL, fetchJson } from '../api.js';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchJson('/config')
+      .then((config) => setRegistrationOpen(Boolean(config.enableMemberRegistration)))
+      .catch(() => setRegistrationOpen(false));
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -43,9 +50,11 @@ function Login() {
         <p className="form-note">
           <Link to="/forgot-password">Forgot password?</Link>
         </p>
-        <p className="form-note">
-          New here? <Link to="/register">Register</Link>
-        </p>
+        {registrationOpen && (
+          <p className="form-note">
+            New here? <Link to="/register">Register</Link>
+          </p>
+        )}
         {message && <p className="message">{message}</p>}
       </section>
     </div>

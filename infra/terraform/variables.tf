@@ -102,7 +102,7 @@ variable "ses_sender_email" {
 }
 
 variable "enable_member_registration" {
-  description = "Whether new signups immediately become members. Keep false to use the pending approval workflow."
+  description = "Whether the public member registration form and signup endpoint are enabled."
   type        = bool
   default     = false
 }

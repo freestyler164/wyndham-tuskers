@@ -25,6 +25,7 @@ const TOKENS_TABLE = process.env.TOKENS_TABLE || 'password_reset_tokens';
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const SES_SENDER = process.env.SES_SENDER || 'club@wyndhamtuskers.local';
+const MEMBER_REGISTRATION_ENABLED = process.env.ENABLE_MEMBER_REGISTRATION === 'true';
 
 const createToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
@@ -73,6 +74,10 @@ const sendPasswordResetEmail = async (email, token) => {
 };
 
 router.post('/signup', async (req, res) => {
+  if (!MEMBER_REGISTRATION_ENABLED) {
+    return res.status(403).json({ message: 'Member registration is currently closed.' });
+  }
+
   const {
     email,
     password,
@@ -96,7 +101,7 @@ router.post('/signup', async (req, res) => {
     suburb: suburb?.trim(),
     familyCount: familyCount ? Number(familyCount) : undefined,
     interests: Array.isArray(interests) ? interests : [],
-    role: process.env.ENABLE_MEMBER_REGISTRATION === 'true' ? 'member' : 'pending',
+    role: 'pending',
     createdAt: new Date().toISOString(),
   };
 
