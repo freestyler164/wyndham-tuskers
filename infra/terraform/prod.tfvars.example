@@ -1,0 +1,22 @@
+project_name               = "wyndham-tuskers"
+environment                = "prod"
+aws_region                 = "ap-southeast-2"
+image_tag                  = "latest"
+desired_count              = 1
+max_capacity               = 3
+autoscaling_enabled        = true
+enable_nat_gateway         = true
+ses_sender_email           = "club@wyndhamtuskers.org"
+enable_member_registration = false
+
+# Production domain. Terraform will look up the existing public Route 53 zone
+# named wyndhamtuskers.com and create the ACM certificate validation records.
+domain_name      = "wyndhamtuskers.com"
+hosted_zone_name = "wyndhamtuskers.com"
+
+# Optional override if the hosted zone lookup is ambiguous.
+# route53_zone_id = "Z1234567890ABC"
+
+tags = {
+  Owner = "wyndham-tuskers"
+}

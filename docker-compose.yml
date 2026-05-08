@@ -1,0 +1,67 @@
+services:
+  localstack:
+    image: localstack/localstack-pro:4.4.0
+    container_name: wt-localstack
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    env_file:
+      - .env.localstack
+    environment:
+      - SERVICES=apigateway,lambda,s3,cloudformation,cognito-idp,dynamodb,sts,iam
+      - DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - EDGE_PORT=4566
+      - LAMBDA_EXECUTOR=docker-reuse
+      - DEBUG=0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - ./local/localstack-init:/etc/localstack/init/ready.d
+      - //var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+      - localstack_data:/var/lib/localstack
+
+  backend:
+    container_name: wt-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_ENDPOINT=http://localstack:4566
+      - USERS_TABLE=members
+      - TOKENS_TABLE=password_reset_tokens
+      - SURVEYS_TABLE=surveys
+      - RESPONSES_TABLE=survey_responses
+      - EVENTS_TABLE=events
+      - SES_SENDER=club@wyndhamtuskers.local
+      - JWT_SECRET=supersecretjwtkey
+      - FRONTEND_URL=http://localhost:3000
+      - ENABLE_MEMBER_REGISTRATION=false
+    ports:
+      - 4000:4000
+    depends_on:
+      - localstack
+
+  frontend:
+    container_name: wt-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - 3000:80
+    depends_on:
+      - backend
+
+volumes:
+  localstack_data:

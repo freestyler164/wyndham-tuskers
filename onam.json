@@ -1,0 +1,152 @@
+{
+  "title": "Onam Celebration 2026",
+  "description": "Help us plan this year's Onam celebration for the Wyndham Tuskers family.",
+  "questions": [
+    {
+      "id": "name",
+      "text": "Your name",
+      "type": "text",
+      "analysisMode": "none",
+      "required": true
+    },
+    {
+      "id": "attending",
+      "text": "Will you and your family be joining this year's Onam celebration?",
+      "type": "choice",
+      "options": ["Yes we'll be there", "No can't make it this time"],
+      "analysisMode": "count",
+      "required": true
+    },
+    {
+      "id": "bank-details-note",
+      "text": "**Payment details**\n\nPlease use the club bank details shared by the committee to complete your Onam contribution. Add your name as the payment reference so we can match it easily.",
+      "type": "content",
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "adults_count",
+      "text": "How many adults are attending?",
+      "type": "number",
+      "analysisMode": "sum",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "kids_0_4_count",
+      "text": "How many little ones aged 0 to 4 are coming?",
+      "type": "number",
+      "analysisMode": "sum",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "kids_4_8_count",
+      "text": "How many kids aged 4 to 8 are coming?",
+      "type": "number",
+      "analysisMode": "sum",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "kids_8_12_count",
+      "text": "How many kids aged 8 to 12 are coming?",
+      "type": "number",
+      "analysisMode": "sum",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "kids_12_plus_count",
+      "text": "How many young adults aged 12 and above are coming?",
+      "type": "number",
+      "analysisMode": "sum",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "program_interest",
+      "text": "Would you, your partner, or your kids like to take part in an Onam program?",
+      "type": "choice",
+      "options": ["Yes count us in", "Maybe please check with us", "Not this time"],
+      "analysisMode": "count",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "organising_team_interest",
+      "text": "Would you or your partner like to help with the Onam organising team?",
+      "type": "choice",
+      "options": ["Yes happy to help", "Maybe tell me what is needed", "Not this time"],
+      "analysisMode": "count",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "mc_interest",
+      "text": "Would you, your partner, or your child be interested in MCing part of the celebration?",
+      "type": "choice",
+      "options": ["Yes interested", "Maybe let's talk", "Not this time"],
+      "analysisMode": "count",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "not_attending_reason",
+      "text": "Sorry we will miss you. What is the main reason you cannot make it?",
+      "type": "textarea",
+      "analysisMode": "list",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "No can't make it this time"
+      }
+    },
+    {
+      "id": "not-attending-note",
+      "text": "**Thanks for being part of the Tuskers family.**\n\nWe will miss you at Onam this time, but keep an eye on our comms space for upcoming events and get-togethers.",
+      "type": "content",
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "No can't make it this time"
+      }
+    }
+  ]
+}

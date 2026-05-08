@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+*.log
+.env
+localstack_data
+.terraform
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
+!*.tfvars.example
+infra/terraform/backend.hcl
+LOCAL_TEST_CREDENTIALS.md
+infra/terraform/.terraform.lock.hcl
+.env.localstack
