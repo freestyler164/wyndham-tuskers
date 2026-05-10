@@ -34,12 +34,53 @@ const safeFilename = (value) => String(value || 'form')
   .replace(/^-+|-+$/g, '')
   .slice(0, 80) || 'form';
 
+const toNumber = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const calculateAmount = (question, answersById) => {
+  const calculation = question.calculation || {};
+  if (['field_sum', 'field_rate_sum', 'calculated_amount'].includes(calculation.type) || question.type === 'calculated_amount') {
+    const rules = Array.isArray(calculation.rules) ? calculation.rules : [];
+    const subtotal = rules.reduce((total, rule) => {
+      const quantity = Math.max(0, toNumber(answersById.get(rule.questionId)));
+      const rate = toNumber(rule.rate);
+      return total + (quantity * rate);
+    }, 0);
+    const minimumWhenAny = calculation.minimumWhenAny === undefined || calculation.minimumWhenAny === ''
+      ? 0
+      : toNumber(calculation.minimumWhenAny);
+    const hasAnyQuantity = rules.some((rule) => toNumber(answersById.get(rule.questionId)) > 0);
+    const amountBeforeCap = hasAnyQuantity ? Math.max(subtotal, minimumWhenAny) : 0;
+    const cap = calculation.cap === undefined || calculation.cap === '' ? null : toNumber(calculation.cap);
+    return cap && cap > 0 ? Math.min(amountBeforeCap, cap) : amountBeforeCap;
+  }
+
+  if (!['capped_fee', 'capped_attendance_fee'].includes(calculation.type)) {
+    return 0;
+  }
+
+  const adultCount = toNumber(answersById.get(calculation.adultQuestionId));
+  const kidCount = (calculation.kidQuestionIds || []).reduce((total, questionId) => total + toNumber(answersById.get(questionId)), 0);
+  const attendeeCount = adultCount + kidCount;
+  if (attendeeCount <= 0) return 0;
+
+  const singleAdultFee = Number(calculation.singleAdultFee ?? 40);
+  const familyFee = Number(calculation.familyFee ?? 80);
+  const cap = Number(calculation.cap ?? familyFee);
+  const fee = adultCount === 1 && kidCount === 0 ? singleAdultFee : familyFee;
+  return Math.min(fee, cap);
+};
+
 const normalizeQuestion = (question) => ({
   id: buildQuestionId(question),
   text: question.text,
   type: question.type || 'text',
-  analysisMode: question.type === 'content' ? 'none' : question.analysisMode || (question.type === 'number' ? 'sum' : 'count'),
-  required: question.type === 'content' ? false : question.required !== false,
+  analysisMode: ['content', 'calculated_fee', 'calculated_amount'].includes(question.type) ? 'none' : question.analysisMode || (question.type === 'number' ? 'sum' : 'count'),
+  required: ['content', 'calculated_fee', 'calculated_amount'].includes(question.type) ? false : question.required !== false,
+  calculation: ['calculated_fee', 'calculated_amount'].includes(question.type) ? question.calculation : undefined,
+  checkboxLabel: question.type === 'checkbox' ? question.checkboxLabel : undefined,
   visibleWhen: question.visibleWhen?.questionId && question.visibleWhen?.value
     ? {
         questionId: question.visibleWhen.questionId,
@@ -171,6 +212,9 @@ router.post('/:id/response', async (req, res) => {
     if (!isAnswerQuestion(question)) return false;
     if (question.required === false) return false;
     const value = answersById.get(question.id);
+    if (question.type === 'checkbox') {
+      return value !== true && value !== 'true';
+    }
     return value === undefined || value === null || String(value).trim() === '';
   });
 
@@ -183,12 +227,10 @@ router.post('/:id/response', async (req, res) => {
     surveyId,
     responseId: crypto.randomBytes(12).toString('hex'),
     submittedAt: new Date().toISOString(),
-    answers: answers
-      .filter((answer) => visibleQuestionIds.has(answer.questionId))
-      .map((answer) => ({
-        questionId: answer.questionId,
-        value: answer.value,
-      })),
+    answers: visibleAnswerQuestions.map((question) => ({
+      questionId: question.id,
+      value: ['calculated_fee', 'calculated_amount'].includes(question.type) ? calculateAmount(question, answersById) : answersById.get(question.id),
+    })),
   };
 
   await db.send(new PutCommand({ TableName: RESPONSES_TABLE, Item: response }));

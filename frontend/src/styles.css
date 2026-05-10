@@ -1173,6 +1173,26 @@ input[type="radio"] {
   background: rgba(255, 250, 240, 0.62);
 }
 
+.calculation-builder {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(255, 250, 240, 0.72);
+}
+
+.calculation-rule-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(110px, 160px) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.add-rule-btn {
+  width: fit-content;
+}
+
 .condition-grid {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 170px minmax(180px, 0.7fr);
@@ -1583,6 +1603,68 @@ input[type="radio"] {
   margin-bottom: 0.4rem;
 }
 
+.survey-checkbox {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  gap: 0.65rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.survey-checkbox input[type="checkbox"] {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0.08rem 0 0;
+  padding: 0;
+  border-radius: 4px;
+  accent-color: var(--terracotta);
+}
+
+.survey-checkbox span {
+  max-width: 42rem;
+}
+
+.calculated-fee-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  background: rgba(255, 250, 240, 0.7);
+  color: var(--ink);
+}
+
+.calculated-fee-card span {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.calculated-fee-card strong {
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.calculated-fee-card p {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.92rem;
+}
+
+.calculated-fee-card > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
 select[multiple] {
   min-height: 132px;
 }
@@ -1727,7 +1809,8 @@ select[multiple] {
     flex-direction: column;
   }
 
-  .condition-grid {
+  .condition-grid,
+  .calculation-rule-row {
     grid-template-columns: 1fr;
   }
 

@@ -10,6 +10,8 @@ const createBlankQuestion = () => ({
   options: '',
   analysisMode: 'none',
   required: true,
+  calculation: createBlankCalculation(),
+  checkboxLabel: '',
   conditionQuestionId: '',
   conditionOperator: 'equals',
   conditionValue: '',
@@ -26,9 +28,22 @@ function cryptoRandomId() {
   return Math.random().toString(16).slice(2, 10);
 }
 
+function createBlankCalculation() {
+  return {
+    type: 'field_rate_sum',
+    currency: 'AUD',
+    cap: '',
+    minimumWhenAny: '',
+    rules: [{ questionId: '', rate: '' }],
+  };
+}
+
 const normalizeQuestionType = (type) => {
   const value = String(type || 'text').toLowerCase();
   if (['content', 'plain_text', 'display', 'html', 'markdown'].includes(value)) return 'content';
+  if (['calculated_fee', 'fee', 'calculated'].includes(value)) return 'calculated_fee';
+  if (['calculated_amount', 'amount', 'field_rate_sum'].includes(value)) return 'calculated_amount';
+  if (['checkbox', 'acknowledgement', 'acknowledgment'].includes(value)) return 'checkbox';
   if (['textarea', 'long_text', 'longtext', 'paragraph'].includes(value)) return 'textarea';
   if (['number', 'numeric', 'integer'].includes(value)) return 'number';
   if (['choice', 'multiple_choice', 'radio', 'select'].includes(value)) return 'choice';
@@ -47,12 +62,46 @@ const normalizeBuilderQuestion = (question = {}) => {
     text: question.text || question.label || question.title || '',
     type,
     options,
-    analysisMode: type === 'content' ? 'none' : question.analysisMode || (type === 'number' ? 'sum' : 'none'),
-    required: type === 'content' ? false : question.required !== false,
+    analysisMode: ['content', 'calculated_fee', 'calculated_amount'].includes(type) ? 'none' : question.analysisMode || (type === 'number' ? 'sum' : 'none'),
+    required: ['content', 'calculated_fee', 'calculated_amount'].includes(type) ? false : question.required !== false,
+    calculation: normalizeCalculation(question.calculation),
+    checkboxLabel: question.checkboxLabel || '',
     conditionQuestionId: question.visibleWhen?.questionId || question.conditionQuestionId || '',
     conditionOperator: question.visibleWhen?.operator || question.conditionOperator || 'equals',
     conditionValue: question.visibleWhen?.value || question.conditionValue || '',
   };
+};
+
+const normalizeCalculation = (calculation = {}) => {
+  if (Array.isArray(calculation.rules)) {
+    return {
+      type: calculation.type || 'field_rate_sum',
+      currency: calculation.currency || 'AUD',
+      cap: calculation.cap ?? '',
+      minimumWhenAny: calculation.minimumWhenAny ?? '',
+      rules: calculation.rules.length
+        ? calculation.rules.map((rule) => ({
+            questionId: rule.questionId || '',
+            rate: rule.rate ?? '',
+          }))
+        : [{ questionId: '', rate: '' }],
+    };
+  }
+
+  if (calculation.adultQuestionId || calculation.kidQuestionIds) {
+    return {
+      type: 'field_rate_sum',
+      currency: calculation.currency || 'AUD',
+      cap: calculation.cap ?? calculation.familyFee ?? '',
+      minimumWhenAny: '',
+      rules: [
+        calculation.adultQuestionId ? { questionId: calculation.adultQuestionId, rate: calculation.singleAdultFee ?? 40 } : null,
+        ...(calculation.kidQuestionIds || []).map((questionId) => ({ questionId, rate: calculation.singleAdultFee ?? 40 })),
+      ].filter(Boolean),
+    };
+  }
+
+  return createBlankCalculation();
 };
 
 function CreateSurvey({ adminMode = false, editMode = false }) {
@@ -85,12 +134,15 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
     const next = [...questions];
     const previousType = next[index].type;
     next[index][field] = value;
-    if (field === 'type' && value === 'content') {
+    if (field === 'type' && ['content', 'calculated_fee', 'calculated_amount'].includes(value)) {
       next[index].analysisMode = 'none';
       next[index].required = false;
       next[index].options = '';
     }
-    if (field === 'type' && previousType === 'content' && value !== 'content') {
+    if (field === 'type' && value === 'calculated_amount') {
+      next[index].calculation = normalizeCalculation(next[index].calculation);
+    }
+    if (field === 'type' && ['content', 'calculated_fee', 'calculated_amount'].includes(previousType) && !['content', 'calculated_fee', 'calculated_amount'].includes(value)) {
       next[index].required = true;
     }
     if (field === 'type' && value === 'number') {
@@ -108,6 +160,54 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
   const addQuestion = () => setQuestions((prev) => [...prev, createBlankQuestion()]);
   const removeQuestion = (index) => {
     setQuestions((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
+  };
+
+  const updateCalculation = (index, field, value) => {
+    setQuestions((prev) => prev.map((question, questionIndex) => (
+      questionIndex === index
+        ? { ...question, calculation: { ...normalizeCalculation(question.calculation), [field]: value } }
+        : question
+    )));
+  };
+
+  const updateCalculationRule = (questionIndex, ruleIndex, field, value) => {
+    setQuestions((prev) => prev.map((question, index) => {
+      if (index !== questionIndex) return question;
+      const calculation = normalizeCalculation(question.calculation);
+      const rules = calculation.rules.map((rule, currentRuleIndex) => (
+        currentRuleIndex === ruleIndex ? { ...rule, [field]: value } : rule
+      ));
+      return { ...question, calculation: { ...calculation, rules } };
+    }));
+  };
+
+  const addCalculationRule = (questionIndex) => {
+    setQuestions((prev) => prev.map((question, index) => {
+      if (index !== questionIndex) return question;
+      const calculation = normalizeCalculation(question.calculation);
+      return {
+        ...question,
+        calculation: {
+          ...calculation,
+          rules: [...calculation.rules, { questionId: '', rate: '' }],
+        },
+      };
+    }));
+  };
+
+  const removeCalculationRule = (questionIndex, ruleIndex) => {
+    setQuestions((prev) => prev.map((question, index) => {
+      if (index !== questionIndex) return question;
+      const calculation = normalizeCalculation(question.calculation);
+      const rules = calculation.rules.filter((_, currentRuleIndex) => currentRuleIndex !== ruleIndex);
+      return {
+        ...question,
+        calculation: {
+          ...calculation,
+          rules: rules.length ? rules : [{ questionId: '', rate: '' }],
+        },
+      };
+    }));
   };
 
   const importFormJson = async (event) => {
@@ -147,8 +247,10 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
         id: question.id,
         text: question.text,
         type: question.type,
-        analysisMode: question.type === 'content' ? 'none' : question.analysisMode,
-        required: question.type === 'content' ? false : question.required,
+        analysisMode: ['content', 'calculated_fee', 'calculated_amount'].includes(question.type) ? 'none' : question.analysisMode,
+        required: ['content', 'calculated_fee', 'calculated_amount'].includes(question.type) ? false : question.required,
+        calculation: question.type === 'calculated_amount' ? normalizeCalculation(question.calculation) : question.calculation,
+        checkboxLabel: question.checkboxLabel,
         visibleWhen: question.conditionQuestionId && question.conditionValue
           ? {
               questionId: question.conditionQuestionId,
@@ -236,7 +338,7 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
             {questions.map((question, index) => (
               <div key={index} className="survey-builder-row">
                 <div className="question-main">
-                  <label>{question.type === 'content' ? `Text block ${index + 1}` : `Question ${index + 1}`}</label>
+                  <label>{question.type === 'content' ? `Text block ${index + 1}` : ['calculated_fee', 'calculated_amount'].includes(question.type) ? `Calculated value ${index + 1}` : `Question ${index + 1}`}</label>
                   <textarea
                     placeholder={question.type === 'content' ? 'Context text shown in the form' : 'Question text'}
                     value={question.text}
@@ -252,6 +354,8 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
                   <label>Input type</label>
                   <select value={question.type} onChange={(e) => updateQuestion(index, 'type', e.target.value)}>
                     <option value="content">Plain text</option>
+                    <option value="calculated_amount">Calculated amount</option>
+                    <option value="checkbox">Checkbox</option>
                     <option value="text">Short text</option>
                     <option value="textarea">Long text</option>
                     <option value="number">Number</option>
@@ -260,7 +364,7 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
                   </select>
                 </div>
 
-                {question.type !== 'content' ? (
+                {!['content', 'calculated_fee', 'calculated_amount'].includes(question.type) ? (
                   <>
                     <div>
                       <label>Analysis</label>
@@ -299,6 +403,82 @@ function CreateSurvey({ adminMode = false, editMode = false }) {
                       onChange={(e) => updateQuestion(index, 'options', e.target.value)}
                       required
                     />
+                  </div>
+                )}
+
+                {question.type === 'checkbox' && (
+                  <div className="question-options">
+                    <label>Checkbox label</label>
+                    <textarea
+                      placeholder="I understand and agree..."
+                      value={question.checkboxLabel}
+                      onChange={(e) => updateQuestion(index, 'checkboxLabel', e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
+                {question.type === 'calculated_amount' && (
+                  <div className="calculation-builder">
+                    <div className="condition-grid">
+                      <div>
+                        <label>Currency</label>
+                        <input
+                          value={question.calculation?.currency || 'AUD'}
+                          onChange={(e) => updateCalculation(index, 'currency', e.target.value.toUpperCase())}
+                          placeholder="AUD"
+                        />
+                      </div>
+                      <div>
+                        <label>Maximum cap</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={question.calculation?.cap ?? ''}
+                          onChange={(e) => updateCalculation(index, 'cap', e.target.value)}
+                          placeholder="80"
+                        />
+                      </div>
+                      <div>
+                        <label>Minimum if any value</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={question.calculation?.minimumWhenAny ?? ''}
+                          onChange={(e) => updateCalculation(index, 'minimumWhenAny', e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+
+                    <label>Calculation rules</label>
+                    {normalizeCalculation(question.calculation).rules.map((rule, ruleIndex) => (
+                      <div key={`${question.id}-rule-${ruleIndex}`} className="calculation-rule-row">
+                        <select
+                          value={rule.questionId}
+                          onChange={(e) => updateCalculationRule(index, ruleIndex, 'questionId', e.target.value)}
+                          required
+                        >
+                          <option value="">Select number question</option>
+                          {questions.slice(0, index).filter((previousQuestion) => previousQuestion.type === 'number').map((previousQuestion, previousIndex) => (
+                            <option key={previousQuestion.id} value={previousQuestion.id}>
+                              Q{previousIndex + 1}: {previousQuestion.text || 'Untitled number question'}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          value={rule.rate}
+                          onChange={(e) => updateCalculationRule(index, ruleIndex, 'rate', e.target.value)}
+                          placeholder="Rate"
+                          required
+                        />
+                        <button type="button" className="btn btn-ghost" onClick={() => removeCalculationRule(index, ruleIndex)}>Remove</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-secondary add-rule-btn" onClick={() => addCalculationRule(index)}>Add source field</button>
+                    <p className="field-help">Calculated amount adds selected number fields multiplied by their rates, then applies the cap if provided.</p>
                   </div>
                 )}
 

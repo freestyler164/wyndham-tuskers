@@ -4,6 +4,51 @@ import { fetchJson } from '../api.js';
 import FormattedText from '../components/FormattedText.jsx';
 import SiteNav from '../components/SiteNav.jsx';
 
+const toNumber = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const calculateAmount = (question, answers) => {
+  const calculation = question.calculation || {};
+  if (['field_sum', 'field_rate_sum', 'calculated_amount'].includes(calculation.type) || question.type === 'calculated_amount') {
+    const rules = Array.isArray(calculation.rules) ? calculation.rules : [];
+    const subtotal = rules.reduce((total, rule) => {
+      const quantity = Math.max(0, toNumber(answers[rule.questionId]));
+      const rate = toNumber(rule.rate);
+      return total + (quantity * rate);
+    }, 0);
+    const minimumWhenAny = calculation.minimumWhenAny === undefined || calculation.minimumWhenAny === ''
+      ? 0
+      : toNumber(calculation.minimumWhenAny);
+    const hasAnyQuantity = rules.some((rule) => toNumber(answers[rule.questionId]) > 0);
+    const amountBeforeCap = hasAnyQuantity ? Math.max(subtotal, minimumWhenAny) : 0;
+    const cap = calculation.cap === undefined || calculation.cap === '' ? null : toNumber(calculation.cap);
+    return cap && cap > 0 ? Math.min(amountBeforeCap, cap) : amountBeforeCap;
+  }
+
+  if (!['capped_fee', 'capped_attendance_fee'].includes(calculation.type)) {
+    return 0;
+  }
+
+  const adultCount = toNumber(answers[calculation.adultQuestionId]);
+  const kidCount = (calculation.kidQuestionIds || []).reduce((total, questionId) => total + toNumber(answers[questionId]), 0);
+  const attendeeCount = adultCount + kidCount;
+  if (attendeeCount <= 0) return 0;
+
+  const singleAdultFee = Number(calculation.singleAdultFee ?? 40);
+  const familyFee = Number(calculation.familyFee ?? 80);
+  const cap = Number(calculation.cap ?? familyFee);
+  const fee = adultCount === 1 && kidCount === 0 ? singleAdultFee : familyFee;
+  return Math.min(fee, cap);
+};
+
+const formatCurrency = (amount, currency = 'AUD') => new Intl.NumberFormat(undefined, {
+  style: 'currency',
+  currency,
+  maximumFractionDigits: 0,
+}).format(amount);
+
 function Survey() {
   const { id } = useParams();
   const [survey, setSurvey] = useState(null);
@@ -49,7 +94,7 @@ function Survey() {
         .filter((question) => question.type !== 'content')
         .map((question) => ({
           questionId: question.id,
-          value: answers[question.id] ?? '',
+          value: ['calculated_fee', 'calculated_amount'].includes(question.type) ? calculateAmount(question, answers) : answers[question.id] ?? '',
         })),
     };
 
@@ -89,6 +134,34 @@ function Survey() {
   const renderQuestion = (question) => {
     if (question.type === 'content') {
       return <FormattedText text={question.text} className="form-context-block" />;
+    }
+
+    if (['calculated_fee', 'calculated_amount'].includes(question.type)) {
+      const amount = calculateAmount(question, answers);
+      const currency = question.calculation?.currency || 'AUD';
+      return (
+        <div className="calculated-fee-card">
+          <div>
+            <span>Calculated contribution</span>
+            <p>{amount > 0 ? 'Based on the attendance numbers entered above.' : 'Enter attendance numbers above to calculate the contribution.'}</p>
+          </div>
+          <strong>{formatCurrency(amount, currency)}</strong>
+        </div>
+      );
+    }
+
+    if (question.type === 'checkbox') {
+      return (
+        <label className="survey-option survey-checkbox">
+          <input
+            type="checkbox"
+            checked={answers[question.id] === true}
+            onChange={(e) => handleChange(question.id, e.target.checked)}
+            required={question.required !== false}
+          />
+          <span>{question.checkboxLabel || 'I agree'}</span>
+        </label>
+      );
     }
 
     if (question.type === 'choice') {
@@ -144,7 +217,7 @@ function Survey() {
         <form onSubmit={handleSubmit}>
           {visibleQuestions.map((question) => (
             <div key={question.id} className={`survey-question ${question.type === 'content' ? 'survey-context' : ''}`}>
-              {question.type !== 'content' && (
+              {!['content', 'calculated_fee', 'calculated_amount'].includes(question.type) && (
                 <label>
                   {question.text}
                   {question.required === false && <span className="optional-label">Optional</span>}

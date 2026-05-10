@@ -88,6 +88,59 @@
       }
     },
     {
+      "id": "onam_contribution",
+      "text": "Your Onam contribution",
+      "type": "calculated_amount",
+      "analysisMode": "none",
+      "required": false,
+      "calculation": {
+        "type": "field_rate_sum",
+        "currency": "AUD",
+        "cap": 80,
+        "minimumWhenAny": 0,
+        "rules": [
+          {
+            "questionId": "adults_count",
+            "rate": 40
+          },
+          {
+            "questionId": "kids_0_4_count",
+            "rate": 40
+          },
+          {
+            "questionId": "kids_4_8_count",
+            "rate": 40
+          },
+          {
+            "questionId": "kids_8_12_count",
+            "rate": 40
+          },
+          {
+            "questionId": "kids_12_plus_count",
+            "rate": 40
+          }
+        ]
+      },
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "fee_acknowledgement",
+      "text": "Contribution acknowledgement",
+      "type": "checkbox",
+      "checkboxLabel": "I understand and agree to pay the applicable Onam contribution shown above.",
+      "analysisMode": "count",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
       "id": "program_interest",
       "text": "Would you, your partner, or your kids like to take part in an Onam program?",
       "type": "choice",
