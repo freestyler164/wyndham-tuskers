@@ -9,6 +9,7 @@ terraform.tfstate
 terraform.tfstate.*
 *.tfvars
 !*.tfvars.example
+infra/terraform/admin-item.json
 infra/terraform/backend.hcl
 LOCAL_TEST_CREDENTIALS.md
 infra/terraform/.terraform.lock.hcl
