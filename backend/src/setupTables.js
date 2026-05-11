@@ -3,8 +3,10 @@ import bcrypt from 'bcryptjs';
 import { DynamoDBClient, DescribeTableCommand, CreateTableCommand, ListTablesCommand } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { AWS_ENDPOINT, awsClientConfig } from './awsConfig.js';
+import { validatePassword } from './config.js';
 
 dotenv.config();
+
 const dynamoClient = new DynamoDBClient(awsClientConfig);
 const db = DynamoDBDocumentClient.from(dynamoClient, {
   marshallOptions: {
@@ -16,9 +18,7 @@ const tables = [
   {
     name: process.env.USERS_TABLE || 'members',
     params: {
-      AttributeDefinitions: [
-        { AttributeName: 'email', AttributeType: 'S' },
-      ],
+      AttributeDefinitions: [{ AttributeName: 'email', AttributeType: 'S' }],
       KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
       GlobalSecondaryIndexes: [
         {
@@ -87,22 +87,20 @@ const ensureTable = async ({ name, params }) => {
   try {
     await dynamoClient.send(new DescribeTableCommand({ TableName: name }));
   } catch (err) {
-    if (err.name === 'ResourceNotFoundException') {
-      await dynamoClient.send(new CreateTableCommand({ TableName: name, ...params }));
-      const start = Date.now();
-      while (Date.now() - start < 30000) {
-        try {
-          const result = await dynamoClient.send(new DescribeTableCommand({ TableName: name }));
-          if (result.Table?.TableStatus === 'ACTIVE') {
-            return;
-          }
-        } catch (ignored) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      }
-      throw new Error(`Table ${name} did not become active in time`);
+    if (err.name !== 'ResourceNotFoundException') {
+      throw err;
     }
-    throw err;
+
+    await dynamoClient.send(new CreateTableCommand({ TableName: name, ...params }));
+    const start = Date.now();
+    while (Date.now() - start < 30000) {
+      const result = await dynamoClient.send(new DescribeTableCommand({ TableName: name }));
+      if (result.Table?.TableStatus === 'ACTIVE') {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`Table ${name} did not become active in time`);
   }
 };
 
@@ -117,7 +115,8 @@ const waitForLocalstack = async () => {
       await dynamoClient.send(new ListTablesCommand({ Limit: 1 }));
       return;
     } catch (err) {
-      const retryable = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.name === 'TimeoutError' || err.name === 'UnknownEndpoint';
+      const retryable = ['ECONNREFUSED', 'ENOTFOUND'].includes(err.code)
+        || ['TimeoutError', 'UnknownEndpoint'].includes(err.name);
       if (!retryable) {
         throw err;
       }
@@ -128,149 +127,119 @@ const waitForLocalstack = async () => {
   throw new Error('LocalStack endpoint did not become available in time');
 };
 
-const seedData = async () => {
-  const usersTable = process.env.USERS_TABLE || 'members';
-  const surveysTable = process.env.SURVEYS_TABLE || 'surveys';
-  const eventsTable = process.env.EVENTS_TABLE || 'events';
+const seedAdmin = async (usersTable) => {
+  const adminEmail = process.env.SEED_ADMIN_EMAIL?.toLowerCase();
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
 
-  // Seed admin user
-  try {
-    const adminCheck = await db.send(new GetCommand({
-      TableName: usersTable,
-      Key: { email: 'admin@wyndhamtuskers.local' }
-    }));
-
-    if (!adminCheck.Item) {
-      const adminPassword = await bcrypt.hash('admin123', 10);
-      await db.send(new PutCommand({
-        TableName: usersTable,
-        Item: {
-          email: 'admin@wyndhamtuskers.local',
-          passwordHash: adminPassword,
-          role: 'admin',
-          createdAt: new Date().toISOString(),
-        }
-      }));
-      console.log('✓ Created admin user: admin@wyndhamtuskers.local (password: admin123)');
-    }
-  } catch (error) {
-    console.warn('Failed to seed admin user:', error.message);
+  if (!adminEmail || !adminPassword) {
+    console.log('Skipping local admin seed. Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to create one.');
+    return;
   }
 
-  // Seed sample members
+  const passwordValidation = validatePassword(adminPassword);
+  if (!passwordValidation.valid) {
+    throw new Error(passwordValidation.message);
+  }
+
+  const adminCheck = await db.send(new GetCommand({
+    TableName: usersTable,
+    Key: { email: adminEmail },
+  }));
+
+  if (adminCheck.Item) {
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
+  await db.send(new PutCommand({
+    TableName: usersTable,
+    Item: {
+      email: adminEmail,
+      passwordHash,
+      role: 'admin',
+      createdAt: new Date().toISOString(),
+    },
+  }));
+  console.log(`Created local admin user: ${adminEmail}`);
+};
+
+const seedMembers = async (usersTable) => {
+  const sampleMemberPassword = process.env.SEED_SAMPLE_MEMBER_PASSWORD;
   const sampleMembers = [
-    { email: 'john.doe@example.com', password: 'member123', role: 'member', fullName: 'John Doe', suburb: 'Tarneit', interests: ['Cricket', 'Onam celebrations'] },
-    { email: 'jane.smith@example.com', password: 'member123', role: 'member', fullName: 'Jane Smith', suburb: 'Point Cook', interests: ['Cultural activities', 'Badminton'] },
-    { email: 'mike.johnson@example.com', password: 'member123', role: 'member', fullName: 'Mike Johnson', suburb: 'Wyndham Vale', interests: ['Volleyball', 'Card games'] },
-    { email: 'sarah.wilson@example.com', password: 'member123', role: 'member', fullName: 'Sarah Wilson', suburb: 'Hoppers Crossing', interests: ['Basketball', 'Onam celebrations'] },
+    { email: 'john.doe@example.com', role: 'member', fullName: 'John Doe', suburb: 'Tarneit', interests: ['Cricket', 'Onam celebrations'] },
+    { email: 'jane.smith@example.com', role: 'member', fullName: 'Jane Smith', suburb: 'Point Cook', interests: ['Cultural activities', 'Badminton'] },
+    { email: 'mike.johnson@example.com', role: 'member', fullName: 'Mike Johnson', suburb: 'Wyndham Vale', interests: ['Volleyball', 'Card games'] },
+    { email: 'sarah.wilson@example.com', role: 'member', fullName: 'Sarah Wilson', suburb: 'Hoppers Crossing', interests: ['Basketball', 'Onam celebrations'] },
   ];
 
   for (const member of sampleMembers) {
-    try {
-      const memberCheck = await db.send(new GetCommand({
-        TableName: usersTable,
-        Key: { email: member.email }
-      }));
+    const memberCheck = await db.send(new GetCommand({
+      TableName: usersTable,
+      Key: { email: member.email },
+    }));
 
-      if (!memberCheck.Item) {
-        const memberPassword = await bcrypt.hash(member.password, 10);
-        await db.send(new PutCommand({
-          TableName: usersTable,
-          Item: {
-            email: member.email,
-            passwordHash: memberPassword,
-            role: member.role,
-            fullName: member.fullName,
-            suburb: member.suburb,
-            interests: member.interests,
-            createdAt: new Date().toISOString(),
-          }
-        }));
-        console.log(`✓ Created member: ${member.email} (password: ${member.password})`);
-      }
-    } catch (error) {
-      console.warn(`Failed to seed member ${member.email}:`, error.message);
+    if (memberCheck.Item) {
+      continue;
     }
-  }
 
-  // Seed sample surveys
+    const passwordHash = sampleMemberPassword ? await bcrypt.hash(sampleMemberPassword, 12) : undefined;
+    await db.send(new PutCommand({
+      TableName: usersTable,
+      Item: {
+        ...member,
+        passwordHash,
+        createdAt: new Date().toISOString(),
+      },
+    }));
+    console.log(`Created sample member: ${member.email}`);
+  }
+};
+
+const seedSurveys = async (surveysTable) => {
   const sampleSurveys = [
     {
-      id: 'match-feedback-2026',
-      title: 'Match Day Experience Survey',
-      description: 'Help us improve our match day experience by sharing your feedback.',
+      id: 'community-pulse-2026',
+      title: 'Community Pulse',
+      description: 'A quick check-in to understand what activities members want next.',
       questions: [
         {
           id: 'q1',
-          text: 'How would you rate the overall match day experience?',
+          text: 'Which activity should we plan next?',
           type: 'choice',
-          options: ['Excellent', 'Good', 'Average', 'Poor']
+          options: ['Onam gathering', 'Volleyball', 'Badminton', 'Cards and carroms'],
+          analysis: 'count',
+          required: true,
         },
         {
           id: 'q2',
-          text: 'What did you enjoy most about the match?',
-          type: 'text'
+          text: 'Any ideas for the organising team?',
+          type: 'text',
+          analysis: 'none',
         },
-        {
-          id: 'q3',
-          text: 'Any suggestions for improvement?',
-          type: 'text'
-        }
       ],
       status: 'active',
-      createdBy: 'admin@wyndhamtuskers.local',
+      createdBy: process.env.SEED_ADMIN_EMAIL || 'local-seed',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
-    {
-      id: 'training-preference-2026',
-      title: 'Training Session Preferences',
-      description: 'Let us know your preferred training times and activities.',
-      questions: [
-        {
-          id: 'q1',
-          text: 'What days work best for training?',
-          type: 'choice',
-          options: ['Weekdays (evenings)', 'Weekends (mornings)', 'Weekends (afternoons)', 'Flexible']
-        },
-        {
-          id: 'q2',
-          text: 'Preferred training activities?',
-          type: 'choice',
-          options: ['Skill drills', 'Fitness training', 'Team tactics', 'Mixed sessions']
-        },
-        {
-          id: 'q3',
-          text: 'Any specific training goals?',
-          type: 'text'
-        }
-      ],
-      status: 'active',
-      createdBy: 'admin@wyndhamtuskers.local',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
   ];
 
   for (const survey of sampleSurveys) {
-    try {
-      const surveyCheck = await db.send(new GetCommand({
-        TableName: surveysTable,
-        Key: { id: survey.id }
-      }));
+    const surveyCheck = await db.send(new GetCommand({
+      TableName: surveysTable,
+      Key: { id: survey.id },
+    }));
 
-      if (!surveyCheck.Item) {
-        await db.send(new PutCommand({
-          TableName: surveysTable,
-          Item: survey
-        }));
-        console.log(`✓ Created survey: ${survey.title}`);
-      }
-    } catch (error) {
-      console.warn(`Failed to seed survey ${survey.id}:`, error.message);
+    if (surveyCheck.Item) {
+      continue;
     }
-  }
 
+    await db.send(new PutCommand({ TableName: surveysTable, Item: survey }));
+    console.log(`Created survey: ${survey.title}`);
+  }
+};
+
+const seedEvents = async (eventsTable) => {
   const sampleEvents = [
     {
       id: 'weekly-cards-carroms',
@@ -299,27 +268,41 @@ const seedData = async () => {
   ];
 
   for (const event of sampleEvents) {
-    try {
-      const eventCheck = await db.send(new GetCommand({
-        TableName: eventsTable,
-        Key: { id: event.id }
-      }));
+    const eventCheck = await db.send(new GetCommand({
+      TableName: eventsTable,
+      Key: { id: event.id },
+    }));
 
-      if (!eventCheck.Item) {
-        await db.send(new PutCommand({
-          TableName: eventsTable,
-          Item: {
-            ...event,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
-        }));
-        console.log(`Created event: ${event.title}`);
-      }
-    } catch (error) {
-      console.warn(`Failed to seed event ${event.id}:`, error.message);
+    if (eventCheck.Item) {
+      continue;
     }
+
+    await db.send(new PutCommand({
+      TableName: eventsTable,
+      Item: {
+        ...event,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+    console.log(`Created event: ${event.title}`);
   }
+};
+
+const seedData = async () => {
+  const usersTable = process.env.USERS_TABLE || 'members';
+  const surveysTable = process.env.SURVEYS_TABLE || 'surveys';
+  const eventsTable = process.env.EVENTS_TABLE || 'events';
+
+  try {
+    await seedAdmin(usersTable);
+  } catch (error) {
+    console.warn(`Skipping local admin seed: ${error.message}`);
+  }
+
+  await seedMembers(usersTable);
+  await seedSurveys(surveysTable);
+  await seedEvents(eventsTable);
 };
 
 export const ensureTables = async () => {
@@ -332,6 +315,7 @@ export const ensureTables = async () => {
     await ensureTable(table);
   }
 
-  // Seed initial data
-  await seedData();
+  if (process.env.SEED_LOCAL_DATA !== 'false') {
+    await seedData();
+  }
 };

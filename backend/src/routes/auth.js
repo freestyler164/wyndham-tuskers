@@ -2,14 +2,13 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import dotenv from 'dotenv';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { verifyToken, requireAdmin } from '../middleware/auth.js';
 import { awsClientConfig } from '../awsConfig.js';
+import { config, getJwtSecret, validatePassword } from '../config.js';
+import { sendEmail } from '../services/email.js';
 
-dotenv.config();
 const router = express.Router();
 
 const dynamoClient = new DynamoDBClient(awsClientConfig);
@@ -18,16 +17,10 @@ const db = DynamoDBDocumentClient.from(dynamoClient, {
     removeUndefinedValues: true,
   },
 });
-const sesClient = new SESClient(awsClientConfig);
-
 const USERS_TABLE = process.env.USERS_TABLE || 'members';
 const TOKENS_TABLE = process.env.TOKENS_TABLE || 'password_reset_tokens';
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const SES_SENDER = process.env.SES_SENDER || 'club@wyndhamtuskers.local';
-const MEMBER_REGISTRATION_ENABLED = process.env.ENABLE_MEMBER_REGISTRATION === 'true';
 
-const createToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+const createToken = (payload) => jwt.sign(payload, getJwtSecret(), { expiresIn: config.jwtExpiresIn });
 
 const getUserByEmail = async (email) => {
   const params = {
@@ -55,26 +48,22 @@ const getUserByEmail = async (email) => {
 };
 
 const sendPasswordResetEmail = async (email, token) => {
-  const url = `${FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+  const url = `${config.frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
   const body = `Hello from Wyndham Tuskers!\n\nUse the link below to reset your password. This link is valid for one hour.\n\n${url}\n\nIf you did not request this, please ignore this message.`;
 
   try {
-    await sesClient.send(new SendEmailCommand({
-      Source: SES_SENDER,
-      Destination: { ToAddresses: [email] },
-      Message: {
-        Subject: { Data: 'Wyndham Tuskers Password Reset' },
-        Body: { Text: { Data: body } },
-      },
-    }));
+    await sendEmail({
+      to: email,
+      subject: 'Wyndham Tuskers Password Reset',
+      text: body,
+    });
   } catch (error) {
-    console.warn('SES send failed; falling back to console log:', error?.message);
-    console.log('Password reset link:', url);
+    console.warn('Password reset email failed:', error?.message);
   }
 };
 
 router.post('/signup', async (req, res) => {
-  if (!MEMBER_REGISTRATION_ENABLED) {
+  if (!config.enableMemberRegistration) {
     return res.status(403).json({ message: 'Member registration is currently closed.' });
   }
 
@@ -88,6 +77,8 @@ router.post('/signup', async (req, res) => {
     interests,
   } = req.body;
   if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) return res.status(400).json({ message: passwordValidation.message });
 
   const existingUser = await getUserByEmail(email.toLowerCase());
   if (existingUser) return res.status(409).json({ message: 'Email already registered.' });
@@ -136,7 +127,8 @@ router.post('/forgot-password', async (req, res) => {
   if (!user) return res.status(200).json({ message: 'If the account exists, a reset link was sent.' });
 
   const token = crypto.randomBytes(24).toString('hex');
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const expiresAtMs = Date.now() + 60 * 60 * 1000;
+  const expiresAt = new Date(expiresAtMs).toISOString();
 
   await db.send(new PutCommand({
     TableName: TOKENS_TABLE,
@@ -144,6 +136,7 @@ router.post('/forgot-password', async (req, res) => {
       email: user.email,
       token,
       expiresAt,
+      expiresAtEpoch: Math.floor(expiresAtMs / 1000),
     },
   }));
 
@@ -154,6 +147,8 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   const { email, token, password } = req.body;
   if (!email || !token || !password) return res.status(400).json({ message: 'Email, token, and new password are required.' });
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) return res.status(400).json({ message: passwordValidation.message });
 
   const getParams = {
     TableName: TOKENS_TABLE,
