@@ -1,0 +1,26 @@
+project_name = "wyndham-tuskers"
+environment  = "pilot"
+aws_region   = "ap-southeast-2"
+
+domain_name             = "pilot.wyndhamtuskers.com"
+additional_domain_names = []
+canonical_domain_name   = ""
+hosted_zone_name        = "wyndhamtuskers.com"
+
+frontend_dist_dir = "../../frontend/dist"
+lambda_zip_path   = "../../build/backend-lambda.zip"
+
+email_from                 = "Wyndham Tuskers <no-reply@wyndhamtuskers.com>"
+enable_member_registration = false
+password_min_length        = 12
+auth_rate_limit_max        = 10
+log_retention_days         = 14
+cloudfront_price_class     = "PriceClass_100"
+
+# Do not commit real secrets. Pass them at apply time with TF_VAR_resend_api_key
+# or an ignored local tfvars file.
+# resend_api_key = "re_..."
+
+tags = {
+  Owner = "wyndham-tuskers"
+}
