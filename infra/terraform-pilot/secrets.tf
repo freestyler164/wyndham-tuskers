@@ -22,4 +22,8 @@ resource "aws_secretsmanager_secret" "resend_api_key" {
 resource "aws_secretsmanager_secret_version" "resend_api_key" {
   secret_id     = aws_secretsmanager_secret.resend_api_key.id
   secret_string = var.resend_api_key != "" ? var.resend_api_key : "replace-me-in-secrets-manager"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }

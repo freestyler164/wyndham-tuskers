@@ -1,5 +1,6 @@
 node_modules
 dist
+build
 .DS_Store
 *.log
 .env
@@ -11,6 +12,7 @@ terraform.tfstate.*
 !*.tfvars.example
 infra/terraform/admin-item.json
 infra/terraform/backend.hcl
+infra/terraform-pilot/backend.hcl
 LOCAL_TEST_CREDENTIALS.md
 infra/terraform/.terraform.lock.hcl
 .env.localstack
