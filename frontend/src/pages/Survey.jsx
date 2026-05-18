@@ -11,6 +11,16 @@ const toNumber = (value) => {
 
 const calculateAmount = (question, answers) => {
   const calculation = question.calculation || {};
+  if (calculation.type === 'field_tier_amount') {
+    const quantity = Math.max(0, toNumber(answers[calculation.sourceQuestionId]));
+    const tier = (calculation.tiers || []).find((item) => {
+      const min = item.min === undefined || item.min === '' ? 0 : toNumber(item.min);
+      const max = item.max === undefined || item.max === '' ? Infinity : toNumber(item.max);
+      return quantity >= min && quantity <= max;
+    });
+    return tier ? toNumber(tier.amount) : 0;
+  }
+
   if (['field_sum', 'field_rate_sum', 'calculated_amount'].includes(calculation.type) || question.type === 'calculated_amount') {
     const rules = Array.isArray(calculation.rules) ? calculation.rules : [];
     const subtotal = rules.reduce((total, rule) => {
@@ -55,6 +65,7 @@ function Survey() {
   const [answers, setAnswers] = useState({});
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     fetchJson(`/surveys/${id}`)
@@ -103,7 +114,8 @@ function Survey() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      setMessage('Thank you! Your responses have been submitted.');
+      setSubmitted(true);
+      setMessage('Thank you. Your response has been submitted successfully.');
     } catch (err) {
       setError(err.message);
     }
@@ -126,6 +138,21 @@ function Survey() {
         <SiteNav />
         <div className="auth-shell form-auth-shell">
           <div className="auth-card"><p>Loading survey...</p></div>
+        </div>
+      </main>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <main className="page-shell">
+        <SiteNav />
+        <div className="auth-shell form-auth-shell">
+          <div className="auth-card">
+            <h1>Response submitted</h1>
+            <p>{message}</p>
+            <Link className="btn btn-primary" to="/">Take me home</Link>
+          </div>
         </div>
       </main>
     );

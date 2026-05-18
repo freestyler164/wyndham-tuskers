@@ -3,8 +3,20 @@
   "description": "Help us plan this year's Onam celebration for the Wyndham Tuskers family.",
   "questions": [
     {
+      "id": "event-details-note",
+      "text": "**Onam Celebration 2026**\n\nJoin the Wyndham Tuskers family for an evening of food, culture, performances, games and community spirit.\n\n**Date:** 8th of August 2026\n\n**Location:** Bacchus Marsh Hall",
+      "type": "content"
+    },
+    {
       "id": "name",
       "text": "Your name",
+      "type": "text",
+      "analysisMode": "none",
+      "required": true
+    },
+    {
+      "id": "mobile_number",
+      "text": "Mobile number",
       "type": "text",
       "analysisMode": "none",
       "required": true
@@ -16,16 +28,6 @@
       "options": ["Yes we'll be there", "No can't make it this time"],
       "analysisMode": "count",
       "required": true
-    },
-    {
-      "id": "bank-details-note",
-      "text": "**Payment details**\n\nPlease use the club bank details shared by the committee to complete your Onam contribution. Add your name as the payment reference so we can match it easily.",
-      "type": "content",
-      "visibleWhen": {
-        "questionId": "attending",
-        "operator": "equals",
-        "value": "Yes we'll be there"
-      }
     },
     {
       "id": "adults_count",
@@ -88,36 +90,39 @@
       }
     },
     {
+      "id": "bank-details-note",
+      "text": "**Payment details**\n\nPlease transfer your Onam contribution to the club account below. Use **name-onam2026** as the payment reference, replacing `name` with your name so we can match the payment easily.\n\n**Account name:** Wyndham Tuskers\n\n**BSB:** 063 541\n\n**Account number:** 11 157 711",
+      "type": "content",
+      "visibleWhen": {
+        "questionId": "attending",
+        "operator": "equals",
+        "value": "Yes we'll be there"
+      }
+    },
+    {
       "id": "onam_contribution",
       "text": "Your Onam contribution",
       "type": "calculated_amount",
       "analysisMode": "none",
       "required": false,
       "calculation": {
-        "type": "field_rate_sum",
+        "type": "field_tier_amount",
         "currency": "AUD",
-        "cap": 80,
-        "minimumWhenAny": 0,
-        "rules": [
+        "sourceQuestionId": "adults_count",
+        "tiers": [
           {
-            "questionId": "adults_count",
-            "rate": 40
+            "min": 1,
+            "max": 1,
+            "amount": 40
           },
           {
-            "questionId": "kids_0_4_count",
-            "rate": 40
+            "min": 2,
+            "max": 3,
+            "amount": 80
           },
           {
-            "questionId": "kids_4_8_count",
-            "rate": 40
-          },
-          {
-            "questionId": "kids_8_12_count",
-            "rate": 40
-          },
-          {
-            "questionId": "kids_12_plus_count",
-            "rate": 40
+            "min": 4,
+            "amount": 100
           }
         ]
       },
@@ -144,13 +149,25 @@
       "id": "program_interest",
       "text": "Would you, your partner, or your kids like to take part in an Onam program?",
       "type": "choice",
-      "options": ["Yes count us in", "Maybe please check with us", "Not this time"],
+      "options": ["Yes count us in", "Interested but looking for a team", "Maybe please check with us", "Not this time"],
       "analysisMode": "count",
       "required": true,
       "visibleWhen": {
         "questionId": "attending",
         "operator": "equals",
         "value": "Yes we'll be there"
+      }
+    },
+    {
+      "id": "program_team_preference",
+      "text": "What kind of program would you like to be part of?",
+      "type": "textarea",
+      "analysisMode": "none",
+      "required": true,
+      "visibleWhen": {
+        "questionId": "program_interest",
+        "operator": "equals",
+        "value": "Interested but looking for a team"
       }
     },
     {

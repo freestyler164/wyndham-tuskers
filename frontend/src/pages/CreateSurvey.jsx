@@ -73,6 +73,20 @@ const normalizeBuilderQuestion = (question = {}) => {
 };
 
 const normalizeCalculation = (calculation = {}) => {
+  if (calculation.type === 'field_tier_amount') {
+    return {
+      type: 'field_tier_amount',
+      currency: calculation.currency || 'AUD',
+      sourceQuestionId: calculation.sourceQuestionId || '',
+      tiers: Array.isArray(calculation.tiers) ? calculation.tiers.map((tier) => ({
+        min: tier.min ?? '',
+        max: tier.max ?? '',
+        amount: tier.amount ?? '',
+      })) : [],
+      rules: [],
+    };
+  }
+
   if (Array.isArray(calculation.rules)) {
     return {
       type: calculation.type || 'field_rate_sum',

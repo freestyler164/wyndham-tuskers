@@ -39,8 +39,43 @@ const toNumber = (value) => {
   return Number.isFinite(numericValue) ? numericValue : 0;
 };
 
+const normalizeMobileNumber = (value) => String(value || '').replace(/\D/g, '');
+
+const findDuplicateCheckQuestion = (survey) => (survey.questions || []).find((question) => (
+  question.preventDuplicate === true
+  || ['mobile', 'mobile_number', 'phone', 'phone_number'].includes(question.id)
+));
+
+const buildDuplicateResponseId = (questionId, value) => {
+  const hash = crypto.createHash('sha256').update(`${questionId}:${value}`).digest('hex').slice(0, 32);
+  return `dedupe#${questionId}#${hash}`;
+};
+
+const hasExistingDuplicateResponse = async (surveyId, questionId, normalizedValue) => {
+  const result = await db.send(new QueryCommand({
+    TableName: RESPONSES_TABLE,
+    KeyConditionExpression: 'surveyId = :surveyId',
+    ExpressionAttributeValues: { ':surveyId': surveyId },
+  }));
+
+  return (result.Items || []).some((response) => {
+    const answer = (response.answers || []).find((item) => item.questionId === questionId);
+    return normalizeMobileNumber(answer?.value) === normalizedValue;
+  });
+};
+
 const calculateAmount = (question, answersById) => {
   const calculation = question.calculation || {};
+  if (calculation.type === 'field_tier_amount') {
+    const quantity = Math.max(0, toNumber(answersById.get(calculation.sourceQuestionId)));
+    const tier = (calculation.tiers || []).find((item) => {
+      const min = item.min === undefined || item.min === '' ? 0 : toNumber(item.min);
+      const max = item.max === undefined || item.max === '' ? Infinity : toNumber(item.max);
+      return quantity >= min && quantity <= max;
+    });
+    return tier ? toNumber(tier.amount) : 0;
+  }
+
   if (['field_sum', 'field_rate_sum', 'calculated_amount'].includes(calculation.type) || question.type === 'calculated_amount') {
     const rules = Array.isArray(calculation.rules) ? calculation.rules : [];
     const subtotal = rules.reduce((total, rule) => {
@@ -222,10 +257,24 @@ router.post('/:id/response', async (req, res) => {
     return res.status(400).json({ message: `Required question is missing: ${missingRequired.text}` });
   }
 
+  const duplicateCheckQuestion = findDuplicateCheckQuestion(survey);
+  const duplicateCheckValue = duplicateCheckQuestion
+    ? normalizeMobileNumber(answersById.get(duplicateCheckQuestion.id))
+    : '';
+
+  if (duplicateCheckQuestion && duplicateCheckValue) {
+    const duplicateExists = await hasExistingDuplicateResponse(surveyId, duplicateCheckQuestion.id, duplicateCheckValue);
+    if (duplicateExists) {
+      return res.status(409).json({ message: 'We have already received a response for this mobile number.' });
+    }
+  }
+
   const visibleQuestionIds = new Set(visibleAnswerQuestions.map((question) => question.id));
   const response = {
     surveyId,
-    responseId: crypto.randomBytes(12).toString('hex'),
+    responseId: duplicateCheckQuestion && duplicateCheckValue
+      ? buildDuplicateResponseId(duplicateCheckQuestion.id, duplicateCheckValue)
+      : crypto.randomBytes(12).toString('hex'),
     submittedAt: new Date().toISOString(),
     answers: visibleAnswerQuestions.map((question) => ({
       questionId: question.id,
@@ -233,7 +282,18 @@ router.post('/:id/response', async (req, res) => {
     })),
   };
 
-  await db.send(new PutCommand({ TableName: RESPONSES_TABLE, Item: response }));
+  try {
+    await db.send(new PutCommand({
+      TableName: RESPONSES_TABLE,
+      Item: response,
+      ConditionExpression: 'attribute_not_exists(surveyId) AND attribute_not_exists(responseId)',
+    }));
+  } catch (error) {
+    if (error?.name === 'ConditionalCheckFailedException') {
+      return res.status(409).json({ message: 'We have already received a response for this mobile number.' });
+    }
+    throw error;
+  }
   return res.status(201).json({ message: 'Response recorded.' });
 });
 
