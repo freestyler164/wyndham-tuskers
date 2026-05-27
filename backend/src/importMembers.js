@@ -1,6 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
-import xlsx from 'xlsx';
+import { readSheet } from 'read-excel-file/node';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { awsClientConfig } from './awsConfig.js';
@@ -75,16 +75,26 @@ const cleanPhone = (value) => {
 
 const getColumn = (row, columnName) => row[columnName];
 
-const readRows = (filePath) => {
-  const resolvedPath = path.resolve(filePath);
-  const workbook = xlsx.readFile(resolvedPath);
-  const sheet = workbook.Sheets[SHEET_NAME];
+const cellToValue = (value) => {
+  if (value instanceof Date) return value.toISOString();
+  if (value === null || value === undefined) return '';
+  return value;
+};
 
-  if (!sheet) {
-    throw new Error(`Sheet "${SHEET_NAME}" was not found in ${resolvedPath}.`);
+const readRows = async (filePath) => {
+  const resolvedPath = path.resolve(filePath);
+  let rawRows;
+  try {
+    rawRows = await readSheet(resolvedPath, SHEET_NAME);
+  } catch (error) {
+    throw new Error(`Unable to read sheet "${SHEET_NAME}" from ${resolvedPath}: ${error.message}`);
   }
 
-  return xlsx.utils.sheet_to_json(sheet, { defval: '' });
+  const [headers = [], ...dataRows] = rawRows;
+  const headerNames = headers.map((header) => cleanText(header));
+  return dataRows.map((row) => Object.fromEntries(
+    headerNames.map((header, index) => [header, cellToValue(row[index])]),
+  ));
 };
 
 const mapRow = (row, index) => {
@@ -154,7 +164,7 @@ const printReport = (report) => {
   console.log(JSON.stringify(report, null, 2));
 };
 
-const rows = readRows(workbookPath);
+const rows = await readRows(workbookPath);
 const renewedRows = rows.filter((row) => cleanText(getColumn(row, COLUMNS.renewal)).toLowerCase() === 'yes');
 const members = renewedRows.map(mapRow);
 const report = buildReport(rows, members);
