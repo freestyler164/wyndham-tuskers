@@ -9,7 +9,7 @@
     "import:members": "node src/importMembers.js"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.385.0",
+    "@aws-sdk/client-dynamodb": "^3.1054.0",
     "@aws-sdk/client-secrets-manager": "^3.1045.0",
     "@aws-sdk/client-ses": "^3.385.0",
     "@aws-sdk/lib-dynamodb": "^3.385.0",
