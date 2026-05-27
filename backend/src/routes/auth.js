@@ -62,44 +62,80 @@ const sendPasswordResetEmail = async (email, token) => {
   }
 };
 
-router.post('/signup', async (req, res) => {
-  if (!config.enableMemberRegistration) {
+const createSignupHandler = ({ preview = false } = {}) => async (req, res) => {
+  if (!config.enableMemberRegistration && !preview) {
     return res.status(403).json({ message: 'Member registration is currently closed.' });
   }
 
   const {
+    appliedBefore,
+    family,
+    gamesInterested,
+    indoorGamesAlreadyMember,
+    membershipCriteriaAccepted,
+    membershipFeeDisclaimerAccepted,
+    onamEoi,
     email,
-    password,
     fullName,
-    phone,
-    suburb,
-    familyCount,
     interests,
+    phone,
+    postcode,
+    previousMember,
+    subscribedIndoorGames,
+    suburb,
   } = req.body;
-  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
-  const passwordValidation = validatePassword(password);
-  if (!passwordValidation.valid) return res.status(400).json({ message: passwordValidation.message });
+
+  if (!email || !fullName) return res.status(400).json({ message: 'Name and email are required.' });
+  if (!suburb || !postcode) return res.status(400).json({ message: 'Suburb and postcode are required.' });
+  if (!membershipFeeDisclaimerAccepted) return res.status(400).json({ message: 'Please acknowledge the membership fee disclaimer.' });
+  if (!membershipCriteriaAccepted) return res.status(400).json({ message: 'Please acknowledge the membership review criteria.' });
 
   const existingUser = await getUserByEmail(email.toLowerCase());
   if (existingUser) return res.status(409).json({ message: 'Email already registered.' });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const normalizedFamily = family && typeof family === 'object'
+    ? {
+      adults: family.adults ? Number(family.adults) : 0,
+      kidsUnder5: family.kidsUnder5 ? Number(family.kidsUnder5) : 0,
+      kidsOver5: family.kidsOver5 ? Number(family.kidsOver5) : 0,
+    }
+    : undefined;
+
+  const sportsNextYear = Array.isArray(gamesInterested)
+    ? gamesInterested
+    : Array.isArray(interests)
+    ? interests
+    : [];
+
   const user = {
     email: email.toLowerCase(),
-    passwordHash: hashedPassword,
     fullName: fullName?.trim(),
     phone: phone?.trim(),
     suburb: suburb?.trim(),
-    familyCount: familyCount ? Number(familyCount) : undefined,
-    interests: Array.isArray(interests) ? interests : [],
+    postcode: String(postcode || '').trim(),
+    family: normalizedFamily,
+    familyCount: normalizedFamily ? normalizedFamily.adults + normalizedFamily.kidsUnder5 + normalizedFamily.kidsOver5 : undefined,
+    sportsNextYear,
+    interests: sportsNextYear,
+    previousMember: Boolean(previousMember),
+    appliedBefore: Boolean(appliedBefore),
+    indoorGamesSubscribed: Boolean(subscribedIndoorGames),
+    indoorGamesAlreadyMember: Boolean(indoorGamesAlreadyMember),
+    onamEoi: Boolean(onamEoi),
+    membershipFeeDisclaimerAccepted: Boolean(membershipFeeDisclaimerAccepted),
+    membershipCriteriaAccepted: Boolean(membershipCriteriaAccepted),
+    membershipStatus: 'pending',
     role: 'pending',
+    source: preview ? 'member-application-preview-2026' : 'member-application',
     createdAt: new Date().toISOString(),
   };
 
   await db.send(new PutCommand({ TableName: USERS_TABLE, Item: user }));
-  const token = createToken({ email: user.email, role: user.role });
-  return res.status(201).json({ token, role: user.role, email: user.email });
-});
+  return res.status(201).json({ role: user.role, email: user.email });
+};
+
+router.post('/signup', createSignupHandler());
+router.post('/signup-preview-2026', createSignupHandler({ preview: true }));
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -110,6 +146,10 @@ router.post('/login', async (req, res) => {
 
   if (user.role === 'pending') {
     return res.status(403).json({ message: 'Your registration is pending approval. Please contact an administrator.' });
+  }
+
+  if (!user.passwordHash) {
+    return res.status(403).json({ message: 'Your account is ready. Please use Forgot password to create your password.' });
   }
 
   const isValid = await bcrypt.compare(password, user.passwordHash);
@@ -215,7 +255,9 @@ router.post('/approve-registration/:email', verifyToken, requireAdmin, async (re
     Item: {
       ...user,
       role: 'member',
+      membershipStatus: 'active',
       approvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     },
   }));
 
@@ -239,21 +281,67 @@ router.post('/reject-registration/:email', verifyToken, requireAdmin, async (req
 
 router.post('/create-admin/:email', verifyToken, requireAdmin, async (req, res) => {
   const email = req.params.email.toLowerCase();
+  const { password } = req.body || {};
   const user = await getUserByEmail(email);
+
   if (!user) {
-    return res.status(404).json({ message: 'User not found.' });
+    if (!password) return res.status(400).json({ message: 'Password is required for a new admin account.' });
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) return res.status(400).json({ message: passwordValidation.message });
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const now = new Date().toISOString();
+    await db.send(new PutCommand({
+      TableName: USERS_TABLE,
+      Item: {
+        email,
+        passwordHash,
+        role: 'admin',
+        createdAt: now,
+        updatedAt: now,
+      },
+    }));
+
+    return res.status(201).json({ message: 'Admin account created.' });
+  }
+
+  const updatedUser = {
+    ...user,
+    role: 'admin',
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (!updatedUser.passwordHash && password) {
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) return res.status(400).json({ message: passwordValidation.message });
+    updatedUser.passwordHash = await bcrypt.hash(password, 12);
   }
 
   await db.send(new PutCommand({
     TableName: USERS_TABLE,
-    Item: {
-      ...user,
-      role: 'admin',
-      updatedAt: new Date().toISOString(),
-    },
+    Item: updatedUser,
   }));
 
   return res.json({ message: 'User promoted to admin.' });
+});
+
+router.delete('/members/:email', verifyToken, requireAdmin, async (req, res) => {
+  const email = req.params.email.toLowerCase();
+  if (email === req.user.email?.toLowerCase()) {
+    return res.status(400).json({ message: 'You cannot delete your own admin account.' });
+  }
+
+  const user = await getUserByEmail(email);
+  if (!user) {
+    return res.status(404).json({ message: 'Member not found.' });
+  }
+
+  await db.send(new DeleteCommand({
+    TableName: USERS_TABLE,
+    Key: { email },
+  }));
+
+  return res.json({ message: 'Member deleted.' });
 });
 
 export default router;

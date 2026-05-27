@@ -12,6 +12,27 @@ const formatDate = (value) => {
   return new Date(value).toLocaleDateString();
 };
 
+const formatFamily = (member) => {
+  if (member.family) {
+    const parts = [
+      `${member.family.adults || 0} adults`,
+      `${member.family.kidsUnder5 || 0} under 5`,
+      `${member.family.kidsOver5 || 0} over 5`,
+    ];
+    return parts.join(', ');
+  }
+  return member.familyCount || '-';
+};
+
+const formatInterests = (member) => {
+  const values = member.gamesInterested?.length
+    ? member.gamesInterested
+    : member.sportsNextYear?.length
+    ? member.sportsNextYear
+    : member.interests;
+  return values?.length ? values.join(', ') : '-';
+};
+
 const buildChart = (totals) => {
   const entries = Object.entries(totals || {});
   const total = entries.reduce((sum, [, count]) => sum + count, 0);
@@ -47,6 +68,10 @@ function AdminSurveys() {
   const [responsesError, setResponsesError] = useState('');
   const [responsesLoading, setResponsesLoading] = useState(false);
   const [showResponses, setShowResponses] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberPage, setMemberPage] = useState(1);
+  const [memberPageSize, setMemberPageSize] = useState(25);
+  const [selectedRegistration, setSelectedRegistration] = useState(null);
   const role = localStorage.getItem('role');
 
   const activeSurveys = useMemo(
@@ -58,6 +83,49 @@ function AdminSurveys() {
     () => [...events].sort((a, b) => String(a.eventDate || '').localeCompare(String(b.eventDate || ''))),
     [events],
   );
+
+  const filteredMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+    const sortedMembers = [...members].sort((a, b) => (
+      String(a.fullName || a.email || '').localeCompare(String(b.fullName || b.email || ''))
+    ));
+
+    if (!query) return sortedMembers;
+
+    return sortedMembers.filter((member) => {
+      const searchable = [
+        member.fullName,
+        member.email,
+        member.phone,
+        member.address,
+        member.suburb,
+        member.postcode,
+        member.role,
+        member.membershipStatus,
+        member.membershipYear,
+        member.previousMember ? 'previous member' : '',
+        member.appliedBefore ? 'applied before' : '',
+        member.indoorGamesSubscribed ? 'indoor games' : '',
+        member.indoorGamesAlreadyMember ? 'indoor games member' : '',
+        member.onamEoi ? 'onam eoi' : '',
+        member.partner?.name,
+        member.partner?.phone,
+        formatFamily(member),
+        formatInterests(member),
+      ].join(' ').toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [members, memberSearch]);
+
+  const memberPageCount = Math.max(1, Math.ceil(filteredMembers.length / memberPageSize));
+  const pagedMembers = useMemo(() => {
+    const start = (memberPage - 1) * memberPageSize;
+    return filteredMembers.slice(start, start + memberPageSize);
+  }, [filteredMembers, memberPage, memberPageSize]);
+  const memberRangeStart = filteredMembers.length === 0 ? 0 : (memberPage - 1) * memberPageSize + 1;
+  const memberRangeEnd = Math.min(memberPage * memberPageSize, filteredMembers.length);
+  const formatLocation = (member) => [member.suburb, member.postcode].filter(Boolean).join(' ') || member.address || 'Location not provided';
 
   const loadSurveys = async () => {
     try {
@@ -103,6 +171,16 @@ function AdminSurveys() {
       loadMembers();
     }
   }, [role]);
+
+  useEffect(() => {
+    setMemberPage(1);
+  }, [memberSearch, memberPageSize]);
+
+  useEffect(() => {
+    if (memberPage > memberPageCount) {
+      setMemberPage(memberPageCount);
+    }
+  }, [memberPage, memberPageCount]);
 
   const createEvent = async (event) => {
     event.preventDefault();
@@ -278,6 +356,7 @@ function AdminSurveys() {
       });
       loadPendingRegistrations();
       loadMembers();
+      setSelectedRegistration(null);
       setMessage('Registration approved.');
     } catch (err) {
       setError(err.message);
@@ -293,6 +372,7 @@ function AdminSurveys() {
         headers: { ...authHeaders() },
       });
       loadPendingRegistrations();
+      setSelectedRegistration(null);
       setMessage('Registration rejected.');
     } catch (err) {
       setError(err.message);
@@ -305,32 +385,32 @@ function AdminSurveys() {
     setMessage('');
 
     try {
-      const response = await fetch(`${API_URL}/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email: newAdminEmail, password: newAdminPassword }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.message || 'Unable to create admin account.');
-        return;
-      }
-
-      const promoteResponse = await fetch(`${API_URL}/auth/create-admin/${encodeURIComponent(newAdminEmail)}`, {
+      await fetchJson(`/auth/create-admin/${encodeURIComponent(newAdminEmail)}`, {
         method: 'POST',
         headers: { ...authHeaders() },
+        body: JSON.stringify({ email: newAdminEmail, password: newAdminPassword }),
       });
-
-      if (!promoteResponse.ok) {
-        const data = await promoteResponse.json();
-        setError(data.message || 'Unable to promote admin account.');
-        return;
-      }
-
       setNewAdminEmail('');
       setNewAdminPassword('');
       setMessage('Admin account created successfully.');
+      loadMembers();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const deleteMember = async (email) => {
+    if (!window.confirm(`Delete ${email}? This cannot be undone.`)) return;
+    setError('');
+    setMessage('');
+
+    try {
+      await fetchJson(`/auth/members/${encodeURIComponent(email)}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders() },
+      });
+      setMessage('Member deleted.');
+      loadMembers();
     } catch (err) {
       setError(err.message);
     }
@@ -522,29 +602,44 @@ function AdminSurveys() {
             </div>
           </div>
           {pendingRegistrations.length > 0 ? (
-            <div className="pending-registrations">
-              {pendingRegistrations.map((registration) => (
-                <div key={registration.email} className="registration-item">
-                  <div>
-                    <strong>{registration.fullName || registration.email}</strong>
-                    <span>{registration.email}</span>
-                    <span>
-                      {registration.suburb || 'Suburb not provided'}
-                      {registration.phone ? ` - ${registration.phone}` : ''}
-                    </span>
-                    <span>Registered {formatDate(registration.createdAt)}</span>
-                    {registration.interests?.length > 0 && <span>{registration.interests.join(', ')}</span>}
-                  </div>
-                  <div className="registration-actions">
-                    <button className="btn btn-primary" onClick={() => approveRegistration(registration.email)}>
-                      Approve
-                    </button>
-                    <button className="btn btn-secondary" onClick={() => rejectRegistration(registration.email)}>
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="table-wrap pending-table-wrap">
+              <table className="survey-table pending-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Location</th>
+                    <th>Family</th>
+                    <th>Interests</th>
+                    <th>Submitted</th>
+                    <th>Review</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingRegistrations.map((registration) => (
+                    <tr
+                      key={registration.email}
+                      onClick={() => setSelectedRegistration(registration)}
+                      tabIndex="0"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedRegistration(registration);
+                        }
+                      }}
+                    >
+                      <td>
+                        <strong>{registration.fullName || registration.email}</strong>
+                        <span>{registration.email}</span>
+                      </td>
+                      <td>{formatLocation(registration)}</td>
+                      <td>{formatFamily(registration)}</td>
+                      <td>{formatInterests(registration)}</td>
+                      <td>{formatDate(registration.createdAt)}</td>
+                      <td><span className="status-pill pending">Open</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <p className="muted-text">No pending registrations.</p>
@@ -575,6 +670,29 @@ function AdminSurveys() {
             <p>Approved member details stored in the members table.</p>
           </div>
         </div>
+        <div className="table-toolbar members-toolbar">
+          <label className="member-search">
+            <span>Search members</span>
+            <input
+              type="search"
+              value={memberSearch}
+              onChange={(event) => setMemberSearch(event.target.value)}
+              placeholder="Name, email, phone, sport..."
+            />
+          </label>
+          <label className="page-size-control">
+            <span>Rows</span>
+            <select
+              value={memberPageSize}
+              onChange={(event) => setMemberPageSize(Number(event.target.value))}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
+        </div>
         <div className="table-wrap">
           <table className="survey-table">
             <thead>
@@ -582,33 +700,146 @@ function AdminSurveys() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Suburb</th>
+                <th>Address</th>
                 <th>Family</th>
                 <th>Interests</th>
                 <th>Approved</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {members.map((member) => (
+              {pagedMembers.map((member) => (
                 <tr key={member.email}>
                   <td><strong>{member.fullName || 'Not provided'}</strong><span>{member.role}</span></td>
                   <td>{member.email}</td>
                   <td>{member.phone || '-'}</td>
-                  <td>{member.suburb || '-'}</td>
-                  <td>{member.familyCount || '-'}</td>
-                  <td>{member.interests?.length ? member.interests.join(', ') : '-'}</td>
-                  <td>{formatDate(member.approvedAt || member.createdAt)}</td>
+                  <td>{member.address || [member.suburb, member.postcode].filter(Boolean).join(' ') || '-'}</td>
+                  <td>{formatFamily(member)}</td>
+                  <td>{formatInterests(member)}</td>
+                  <td>{formatDate(member.approvedAt || member.importedAt || member.updatedAt || member.createdAt)}</td>
+                  <td>
+                    <button className="btn btn-ghost" type="button" onClick={() => deleteMember(member.email)}>
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {members.length === 0 && (
+              {filteredMembers.length === 0 && (
                 <tr>
-                  <td colSpan="7">No approved members found.</td>
+                  <td colSpan="8">{members.length === 0 ? 'No approved members found.' : 'No members match your search.'}</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        <div className="pagination-bar">
+          <p>
+            Showing {memberRangeStart}-{memberRangeEnd} of {filteredMembers.length}
+            {filteredMembers.length !== members.length ? ` filtered from ${members.length}` : ''}
+          </p>
+          <div className="pagination-controls">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setMemberPage((page) => Math.max(1, page - 1))}
+              disabled={memberPage <= 1}
+            >
+              Previous
+            </button>
+            <span>Page {memberPage} of {memberPageCount}</span>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setMemberPage((page) => Math.min(memberPageCount, page + 1))}
+              disabled={memberPage >= memberPageCount}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </section>
+
+      {selectedRegistration && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedRegistration(null)}>
+          <section className="analytics-modal registration-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <div className="modal-brand">
+                  <img src={logoUrl} alt="" />
+                  <p className="eyebrow">Pending registration</p>
+                </div>
+                <h2>{selectedRegistration.fullName || selectedRegistration.email}</h2>
+                <p className="muted-text">{selectedRegistration.email}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-primary" type="button" onClick={() => approveRegistration(selectedRegistration.email)}>
+                  Approve
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => rejectRegistration(selectedRegistration.email)}>
+                  Reject
+                </button>
+                <button className="btn btn-ghost" type="button" onClick={() => setSelectedRegistration(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="registration-detail-grid">
+              <article>
+                <span>Name</span>
+                <strong>{selectedRegistration.fullName || '-'}</strong>
+              </article>
+              <article>
+                <span>Email</span>
+                <strong>{selectedRegistration.email}</strong>
+              </article>
+              <article>
+                <span>Mobile</span>
+                <strong>{selectedRegistration.phone || '-'}</strong>
+              </article>
+              <article>
+                <span>Suburb</span>
+                <strong>{formatLocation(selectedRegistration)}</strong>
+              </article>
+              <article>
+                <span>Family</span>
+                <strong>{formatFamily(selectedRegistration)}</strong>
+              </article>
+              <article>
+                <span>Games interested</span>
+                <strong>{formatInterests(selectedRegistration)}</strong>
+              </article>
+              <article>
+                <span>Previous member</span>
+                <strong>{selectedRegistration.previousMember ? 'Yes' : 'No'}</strong>
+              </article>
+              <article>
+                <span>Applied before</span>
+                <strong>{selectedRegistration.appliedBefore ? 'Yes' : 'No'}</strong>
+              </article>
+              <article>
+                <span>Submitted</span>
+                <strong>{formatDate(selectedRegistration.createdAt)}</strong>
+              </article>
+            </div>
+
+            <div className="registration-detail-notes">
+              <article>
+                <h3>Activity interests</h3>
+                <p>{selectedRegistration.indoorGamesSubscribed ? 'Wants indoor games updates.' : 'No indoor games update request.'}</p>
+                <p>{selectedRegistration.indoorGamesAlreadyMember ? 'Already part of the indoor games group.' : 'Not marked as an existing indoor games member.'}</p>
+                <p>{selectedRegistration.onamEoi ? 'Interested in Aug 8 Onam participation.' : 'No Onam participation EOI selected.'}</p>
+              </article>
+              <article>
+                <h3>Membership review</h3>
+                <p>{selectedRegistration.membershipFeeDisclaimerAccepted ? 'Membership fee acknowledgement accepted.' : 'Membership fee acknowledgement not accepted.'}</p>
+                <p>{selectedRegistration.membershipCriteriaAccepted ? 'Membership review criteria accepted.' : 'Membership review criteria not accepted.'}</p>
+                <p>{selectedRegistration.appliedBefore ? 'Applicant has applied before.' : 'No previous application declared.'}</p>
+              </article>
+            </div>
+          </section>
+        </div>
+      )}
 
       {(analyticsLoading || analytics || analyticsError) && (
         <div className="modal-backdrop" role="presentation" onClick={closeAnalytics}>

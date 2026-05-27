@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "seed:admin": "node src/seedAdmin.js"
+    "seed:admin": "node src/seedAdmin.js",
+    "import:members": "node src/importMembers.js"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.385.0",
@@ -19,5 +20,8 @@
     "express-rate-limit": "^8.5.1",
     "jsonwebtoken": "^9.0.2",
     "serverless-http": "^4.0.0"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }
