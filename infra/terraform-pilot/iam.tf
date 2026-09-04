@@ -39,8 +39,44 @@ data "aws_iam_policy_document" "backend_lambda" {
       aws_dynamodb_table.tokens.arn,
       aws_dynamodb_table.surveys.arn,
       aws_dynamodb_table.responses.arn,
-      aws_dynamodb_table.events.arn
+      aws_dynamodb_table.events.arn,
+      aws_dynamodb_table.news.arn,
+      aws_dynamodb_table.marketplace.arn,
+      aws_dynamodb_table.gallery.arn,
+      aws_dynamodb_table.settings.arn,
+      aws_dynamodb_table.painting_competition.arn,
+      aws_dynamodb_table.painting_submissions.arn,
+      aws_dynamodb_table.onam_schedule.arn
     ]
+  }
+
+  statement {
+    actions = [
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+    resources = ["${aws_s3_bucket.painting_assets.arn}/*"]
+  }
+
+  statement {
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.frontend.arn}/static/photos/news/*",
+      "${aws_s3_bucket.frontend.arn}/static/photos/marketplace/*",
+      "${aws_s3_bucket.frontend.arn}/static/photos/onam-schedule/*"
+    ]
+  }
+
+  # Gallery photos are removable from the admin page, so deletes are allowed on this prefix only.
+  statement {
+    actions = [
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+    resources = ["${aws_s3_bucket.frontend.arn}/static/photos/gallery/*"]
   }
 
   statement {

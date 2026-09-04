@@ -361,6 +361,21 @@ router.get('/:id/responses', verifyToken, requireAdmin, async (req, res) => {
   return res.json(buildResponsePayload(result.survey, result.responses));
 });
 
+router.delete('/:id/responses/:responseId', verifyToken, requireAdmin, async (req, res) => {
+  const surveyResult = await db.send(new GetCommand({ TableName: SURVEYS_TABLE, Key: { id: req.params.id } }));
+  if (!surveyResult.Item) return res.status(404).json({ message: 'Survey not found.' });
+
+  await db.send(new DeleteCommand({
+    TableName: RESPONSES_TABLE,
+    Key: {
+      surveyId: req.params.id,
+      responseId: req.params.responseId,
+    },
+  }));
+
+  return res.status(204).send();
+});
+
 router.get('/:id/responses.csv', verifyToken, requireAdmin, async (req, res) => {
   const result = await getSurveyWithResponses(req.params.id);
   if (!result) return res.status(404).json({ message: 'Survey not found.' });

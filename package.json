@@ -1,0 +1,18 @@
+{
+  "name": "wyndham-tuskers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/mytuskers-api",
+    "apps/mytuskers-web",
+    "packages/mytuskers-contracts"
+  ],
+  "scripts": {
+    "mytuskers:build": "npm run build -w @wyndham-tuskers/mytuskers-web && npm run check -w @wyndham-tuskers/mytuskers-contracts",
+    "mytuskers:api:smoke": "npm run smoke -w @wyndham-tuskers/mytuskers-api",
+    "mytuskers:api:test": "npm run test:integration -w @wyndham-tuskers/mytuskers-api",
+    "mytuskers:e2e": "npm run test:e2e -w @wyndham-tuskers/mytuskers-web",
+    "mytuskers:verify": "npm run mytuskers:build && npm run mytuskers:api:smoke && npm run mytuskers:api:test && npm run mytuskers:e2e"
+  }
+}

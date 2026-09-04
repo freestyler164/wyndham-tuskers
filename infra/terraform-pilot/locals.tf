@@ -11,11 +11,18 @@ locals {
   allowed_origins         = join(",", [for domain in local.domain_names : "https://${domain}"])
 
   table_names = {
-    members   = "${local.name_prefix}-members"
-    tokens    = "${local.name_prefix}-password-reset-tokens"
-    surveys   = "${local.name_prefix}-surveys"
-    responses = "${local.name_prefix}-survey-responses"
-    events    = "${local.name_prefix}-events"
+    members              = "${local.name_prefix}-members"
+    tokens               = "${local.name_prefix}-password-reset-tokens"
+    surveys              = "${local.name_prefix}-surveys"
+    responses            = "${local.name_prefix}-survey-responses"
+    events               = "${local.name_prefix}-events"
+    news                 = "${local.name_prefix}-news"
+    marketplace          = "${local.name_prefix}-marketplace"
+    gallery              = "${local.name_prefix}-gallery"
+    settings             = "${local.name_prefix}-settings"
+    painting_competition = "${local.name_prefix}-painting-competition"
+    painting_submissions = "${local.name_prefix}-painting-submissions"
+    onam_schedule        = "${local.name_prefix}-onam-schedule"
   }
 
   content_types = {
@@ -32,6 +39,7 @@ locals {
     webp  = "image/webp"
     ico   = "image/x-icon"
     txt   = "text/plain"
+    pdf   = "application/pdf"
     mp4   = "video/mp4"
     webm  = "video/webm"
     woff  = "font/woff"

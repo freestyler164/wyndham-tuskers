@@ -58,11 +58,11 @@ resource "aws_route53_record" "cloudfront_cert_validation" {
     }
   }
 
-  zone_id = local.route53_zone_id
-  name    = each.value.name
-  type    = each.value.type
-  ttl     = 60
-  records = [each.value.record]
+  zone_id         = local.route53_zone_id
+  name            = each.value.name
+  type            = each.value.type
+  ttl             = 60
+  records         = [each.value.record]
   allow_overwrite = true
 }
 
@@ -198,9 +198,9 @@ resource "aws_s3_bucket_policy" "frontend" {
 }
 
 resource "aws_route53_record" "app_a" {
-  zone_id = local.route53_zone_id
-  name    = var.domain_name
-  type    = "A"
+  zone_id         = local.route53_zone_id
+  name            = var.domain_name
+  type            = "A"
   allow_overwrite = true
 
   alias {
@@ -211,9 +211,9 @@ resource "aws_route53_record" "app_a" {
 }
 
 resource "aws_route53_record" "app_aaaa" {
-  zone_id = local.route53_zone_id
-  name    = var.domain_name
-  type    = "AAAA"
+  zone_id         = local.route53_zone_id
+  name            = var.domain_name
+  type            = "AAAA"
   allow_overwrite = true
 
   alias {

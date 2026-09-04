@@ -29,8 +29,18 @@ function Login() {
     if (response.ok) {
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('role', data.role || 'member');
+      localStorage.setItem('scopes', JSON.stringify(data.scopes || []));
+      if (data.expiresAt) localStorage.setItem('authExpiresAt', data.expiresAt);
+      else localStorage.removeItem('authExpiresAt');
       setMessage('Login successful. Welcome back!');
-      setTimeout(() => navigate('/'), 1000);
+      const scopes = data.scopes || [];
+      let destination = '/';
+      if (data.role === 'guest' && scopes.includes('onam-schedule:manage')) {
+        destination = '/admin/onam-schedule';
+      } else if (data.role === 'guest' && scopes.includes('painting:judge')) {
+        destination = '/admin/painting-competition';
+      }
+      setTimeout(() => navigate(destination), 500);
     } else {
       setMessage(data.message || 'Unable to sign in.');
     }
@@ -41,8 +51,8 @@ function Login() {
       <section className="auth-card">
         <h1>Member Login</h1>
         <form onSubmit={handleSubmit}>
-          <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <label>Email or guest username</label>
+          <input type="text" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <label>Password</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <button type="submit" className="btn btn-primary">Login</button>

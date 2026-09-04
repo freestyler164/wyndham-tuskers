@@ -1,0 +1,24 @@
+aws_region         = "ap-southeast-2"
+environment        = "prod"
+project_name       = "mytuskers"
+
+# Leave these empty to test on the CloudFront default hostname.
+domain_name        = "mytuskers.wyndhamtuskers.com"
+hosted_zone_name   = "wyndhamtuskers.com"
+create_dns_records = true
+cloudfront_certificate_arn = ""
+
+additional_domain_names = []
+
+frontend_dist_dir = "../../apps/mytuskers-web/dist"
+lambda_zip_path   = "../../build/mytuskers-api-lambda.zip"
+
+seed_on_startup = false
+
+admin_user_phone        = "+61473623614"
+admin_user_email        = "admin@wyndhamtuskers.com"
+admin_user_display_name = "Global Admin"
+admin_user_password_hash = "$2b$12$arQ8B7QxQZ5IQdtLcBRkU.6X.Z/kRAOdOMP.cZWi.iw8OzxDSGnkC"
+
+resend_api_key = ""
+email_from     = "MyTuskers <noreply@wyndhamtuskers.com>"

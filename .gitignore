@@ -4,15 +4,45 @@ build
 .DS_Store
 *.log
 .env
+.env.*
+!.env*.example
 localstack_data
 .terraform
 terraform.tfstate
 terraform.tfstate.*
 *.tfvars
 !*.tfvars.example
+*.tfplan
 infra/terraform/admin-item.json
 infra/terraform/backend.hcl
 infra/terraform-pilot/backend.hcl
+infra/terraform-mytuskers/backend.hcl
 LOCAL_TEST_CREDENTIALS.md
 infra/terraform/.terraform.lock.hcl
 .env.localstack
+
+# Playwright / local test output
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+
+# Local working copies, member PII, and kids' competition source photos
+# (curated site assets under frontend/src/public remain tracked)
+painting-competition-by-child/
+Tuskers Members.xlsx
+*.HEIC
+*.heic
+
+# Ad-hoc schedules / menus / design dumps at repo root
+/Legends_Summer_*.xlsx
+/Wyndham_Tuskers_Onam_*.xlsx
+/Curry_Leaf_*.pdf
+/onam-painting*.pdf
+/onam-painting*.png
+/onam-patinting*.pdf
+/onam@*.png
+/mytuskers-reference-*.png
+/IMG_*.HEIC
+/IMG_*.heic
+**/packages/

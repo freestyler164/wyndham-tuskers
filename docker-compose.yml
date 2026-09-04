@@ -46,6 +46,17 @@ services:
       - SURVEYS_TABLE=surveys
       - RESPONSES_TABLE=survey_responses
       - EVENTS_TABLE=events
+      - NEWS_TABLE=news_posts
+      - MARKETPLACE_TABLE=marketplace
+      - GALLERY_TABLE=gallery
+      - SETTINGS_TABLE=settings
+      - PAINTING_COMPETITION_TABLE=painting_competition
+      - PAINTING_SUBMISSIONS_TABLE=painting_submissions
+      - ONAM_SCHEDULE_TABLE=onam_schedule
+      - PAINTING_ASSETS_BUCKET=wt-local-painting-assets
+      - MARKETPLACE_ASSETS_BUCKET=wt-local-marketplace-assets
+      - GALLERY_ASSETS_BUCKET=wt-local-gallery-assets
+      - ONAM_SCHEDULE_ASSETS_BUCKET=wt-local-onam-schedule-assets
       - FRONTEND_URL=http://localhost:3000
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
       - ENABLE_MEMBER_REGISTRATION=false
@@ -63,6 +74,41 @@ services:
       - 3000:80
     depends_on:
       - backend
+
+  mytuskers-api:
+    container_name: mytuskers-api
+    build:
+      context: ./apps/mytuskers-api
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=4100
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_ENDPOINT=http://localstack:4566
+      - MYTUSKERS_CORE_TABLE=mytuskers-core
+      - MYTUSKERS_FINANCE_TABLE=mytuskers-finance
+      - MYTUSKERS_AUDIT_TABLE=mytuskers-audit
+      - MYTUSKERS_RECEIPTS_BUCKET=mytuskers-local-receipts
+      - MYTUSKERS_WEB_ORIGIN=http://localhost:3100
+      - MYTUSKERS_JWT_SECRET=mytuskers-local-dev-secret
+    ports:
+      - 4100:4100
+    depends_on:
+      - localstack
+
+  mytuskers-web:
+    container_name: mytuskers-web
+    build:
+      context: ./apps/mytuskers-web
+      dockerfile: Dockerfile
+    environment:
+      - VITE_MYTUSKERS_API_URL=http://localhost:4100
+    ports:
+      - 3100:3100
+    depends_on:
+      - mytuskers-api
 
 volumes:
   localstack_data:

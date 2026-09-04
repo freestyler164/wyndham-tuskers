@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 120 1200 820" role="img" aria-labelledby="title desc">
+  <title id="title">Aussie Werribee</title>
+  <desc id="desc">Aussie Werribee logo in purple and yellow.</desc>
+  <rect width="1200" height="1200" fill="#ffffff"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M425 360 600 205 775 360H425Z" stroke="#4b206e" stroke-width="28"/>
+    <path d="M420 408H780" stroke="#ffcc18" stroke-width="28"/>
+    <path d="M420 458H780" stroke="#ffcc18" stroke-width="28"/>
+  </g>
+  <text x="600" y="705" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="195" font-weight="800" fill="#4b206e">Aussie</text>
+  <text x="600" y="855" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="88" font-weight="800" letter-spacing="34" fill="#4b206e">WERRIBEE</text>
+</svg>

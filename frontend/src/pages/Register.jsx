@@ -28,6 +28,7 @@ function Register({ previewMode = false }) {
     familyKidsOver5: '',
     gamesInterested: [],
     previousMember: '',
+    referralSource: '',
     appliedBefore: false,
     subscribedIndoorGames: false,
     indoorGamesAlreadyMember: false,
@@ -82,6 +83,7 @@ function Register({ previewMode = false }) {
         },
         gamesInterested: form.gamesInterested,
         previousMember: form.previousMember === 'yes',
+        referralSource: form.referralSource,
         appliedBefore: form.appliedBefore,
         subscribedIndoorGames: form.subscribedIndoorGames,
         indoorGamesAlreadyMember: form.indoorGamesAlreadyMember,
@@ -107,6 +109,7 @@ function Register({ previewMode = false }) {
         familyKidsOver5: '',
         gamesInterested: [],
         previousMember: '',
+        referralSource: '',
         appliedBefore: false,
         subscribedIndoorGames: false,
         indoorGamesAlreadyMember: false,
@@ -181,6 +184,15 @@ function Register({ previewMode = false }) {
                 <input inputMode="numeric" value={form.postcode} onChange={(event) => updateField('postcode', event.target.value)} required />
               </label>
             </div>
+
+            <label>
+              <span>How did you hear about us or who referred you?</span>
+              <input
+                value={form.referralSource}
+                onChange={(event) => updateField('referralSource', event.target.value)}
+                placeholder="Friend, family, community event, social media..."
+              />
+            </label>
 
             <fieldset className="membership-fieldset">
               <legend>Family members</legend>

@@ -4,6 +4,7 @@ import { fetchJson } from '../api.js';
 import SiteNav from '../components/SiteNav.jsx';
 import FormattedText from '../components/FormattedText.jsx';
 import MediaPlaceholder from '../components/MediaPlaceholder.jsx';
+import SponsorCarousel from '../components/SponsorCarousel.jsx';
 
 const homePhotos = [
   { label: 'Family moments', src: '/static/photos/home/club-photo.jpg' },
@@ -17,6 +18,7 @@ const homePhotos = [
 function Home() {
   const [items, setItems] = useState([]);
   const [events, setEvents] = useState([]);
+  const [onamSchedule, setOnamSchedule] = useState(null);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,6 +38,13 @@ function Home() {
 
         if (configResult.status === 'fulfilled') {
           setRegistrationOpen(Boolean(configResult.value.enableMemberRegistration));
+          if (configResult.value.onamSchedulePublished) {
+            fetchJson('/onam-schedule')
+              .then((schedule) => setOnamSchedule(schedule))
+              .catch(() => setOnamSchedule(null));
+          } else {
+            setOnamSchedule(null);
+          }
         }
       })
       .catch((err) => setError(err.message));
@@ -43,6 +52,15 @@ function Home() {
 
   const featuredItem = items[0];
   const featuredEvents = events.slice(0, 3);
+  const onamItems = onamSchedule?.items || [];
+  const liveOnamItem = onamItems.find((item) => item.status === 'live')
+    || onamItems.find((item) => item.status === 'upcoming')
+    || onamItems[onamItems.length - 1];
+  const onamStatusText = onamSchedule?.config?.eventStatus === 'live'
+    ? 'Live now'
+    : onamSchedule?.config?.eventStatus === 'completed'
+    ? 'Completed'
+    : 'Published schedule';
 
   const formatEventDate = (value) => {
     if (!value) return 'TBC';
@@ -73,12 +91,25 @@ function Home() {
         </div>
 
         <div className="home-action-grid">
-          <section className="home-tile whats-new-tile">
-            <span className="eyebrow">What's new</span>
-            <h2>{featuredItem?.title || 'Community forms will appear here'}</h2>
-            <p>{featuredItem ? 'Open now for member responses.' : 'Admins can publish forms from the portal.'}</p>
-            {featuredItem && <Link className="btn btn-primary" to={`/survey/${featuredItem.id}`}>Open form</Link>}
-          </section>
+          {onamSchedule?.config?.published ? (
+            <section className="home-tile whats-new-tile live-onam-tile">
+              <span className="eyebrow">Live Onam updates</span>
+              <h2>{liveOnamItem?.title || 'Onam 2026 schedule is live'}</h2>
+              <p>
+                {liveOnamItem
+                  ? `${onamStatusText} · ${liveOnamItem.timeLabel || 'Time TBC'} · ${liveOnamItem.location || onamSchedule.config.venue || 'Venue TBC'}`
+                  : 'All scheduled items completed.'}
+              </p>
+              <Link className="btn btn-primary" to="/onam-2026">View live tracker</Link>
+            </section>
+          ) : (
+            <section className="home-tile whats-new-tile">
+              <span className="eyebrow">What's new</span>
+              <h2>{featuredItem?.title || 'Community forms will appear here'}</h2>
+              <p>{featuredItem ? 'Open now for member responses.' : 'Admins can publish forms from the portal.'}</p>
+              {featuredItem && <Link className="btn btn-primary" to={`/survey/${featuredItem.id}`}>Open form</Link>}
+            </section>
+          )}
 
           <section className="home-tile events-tile">
             <div className="tile-heading">
@@ -99,6 +130,8 @@ function Home() {
               )}
             </div>
           </section>
+
+          <SponsorCarousel variant="home" title="Sponsor spotlight" />
         </div>
       </section>
 

@@ -1,0 +1,22 @@
+{
+  "name": "MyTuskers",
+  "short_name": "MyTuskers",
+  "description": "Private Wyndham Tuskers team operations app.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "background_color": "#f7efe0",
+  "theme_color": "#f7efe0",
+  "icons": [
+    {
+      "src": "/wt_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" role="img" aria-labelledby="title desc">
+  <title id="title">Curry Leaf by Lakshmi</title>
+  <desc id="desc">Circular Curry Leaf by Lakshmi logo with green leaves and authentic Kerala cuisine text.</desc>
+  <rect width="1200" height="920" fill="#0f3a22"/>
+  <circle cx="600" cy="450" r="360" fill="#fff9ef"/>
+  <circle cx="600" cy="450" r="318" fill="none" stroke="#af8f47" stroke-width="5"/>
+  <circle cx="600" cy="450" r="340" fill="none" stroke="#163b22" stroke-width="4" stroke-dasharray="820 120"/>
+  <g transform="translate(286 252) rotate(-15)" fill="#315f2d" stroke="#143b20" stroke-width="3">
+    <path d="M72 325 C88 240 90 160 82 42" fill="none" stroke="#143b20" stroke-width="9" stroke-linecap="round"/>
+    <ellipse cx="45" cy="238" rx="28" ry="55" transform="rotate(-38 45 238)"/>
+    <ellipse cx="91" cy="207" rx="28" ry="55" transform="rotate(40 91 207)"/>
+    <ellipse cx="40" cy="162" rx="25" ry="48" transform="rotate(-36 40 162)"/>
+    <ellipse cx="91" cy="133" rx="25" ry="48" transform="rotate(40 91 133)"/>
+    <ellipse cx="41" cy="94" rx="22" ry="42" transform="rotate(-34 41 94)"/>
+    <ellipse cx="89" cy="69" rx="22" ry="42" transform="rotate(38 89 69)"/>
+  </g>
+  <text x="690" y="370" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="156" fill="#143b20">Curry</text>
+  <text x="673" y="520" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="168" font-style="italic" fill="#143b20">Leaf</text>
+  <g fill="none" stroke="#af8f47" stroke-width="4" stroke-linecap="round">
+    <path d="M420 575H520"/>
+    <path d="M680 575H780"/>
+  </g>
+  <text x="600" y="592" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="52" fill="#7b682f">by Lakshmi</text>
+  <g transform="translate(515 630)">
+    <path d="M30 54 C70 22 130 22 170 54 C130 78 72 78 30 54Z" fill="#d6a83a"/>
+    <path d="M54 46 C94 14 132 16 154 50 C118 34 86 36 54 46Z" fill="#174626"/>
+    <rect x="72" y="28" width="64" height="28" rx="4" fill="#fff9ef" stroke="#174626" stroke-width="4"/>
+    <path d="M70 28 C94 5 119 5 138 28" fill="#d6a83a" stroke="#174626" stroke-width="4"/>
+    <path d="M22 62 C88 90 138 88 180 62" fill="none" stroke="#174626" stroke-width="4"/>
+  </g>
+  <text x="600" y="746" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="11" fill="#244a2b">AUTHENTIC KERALA CUISINE</text>
+</svg>

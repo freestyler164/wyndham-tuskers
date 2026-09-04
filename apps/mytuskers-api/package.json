@@ -1,0 +1,25 @@
+{
+  "name": "@wyndham-tuskers/mytuskers-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "smoke": "node src/smoke.js",
+    "backfill:feed-index": "node src/backfillFeedIndex.js",
+    "test:integration": "node src/integration.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1081.0",
+    "@aws-sdk/client-s3": "^3.1081.0",
+    "@aws-sdk/lib-dynamodb": "^3.1081.0",
+    "@aws-sdk/s3-request-presigner": "^3.1091.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "serverless-http": "^4.0.0",
+    "web-push": "^3.6.7",
+    "wyndham-tuskers": "file:../.."
+  }
+}

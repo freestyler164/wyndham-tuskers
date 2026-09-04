@@ -1,4 +1,4 @@
-.PHONY: all build up down logs clean backend-install frontend-install package-lambda build-frontend build-pilot-assets
+.PHONY: all build up down logs clean backend-install frontend-install mytuskers-up mytuskers-verify package-lambda build-frontend build-pilot-assets
 
 all: up
 
@@ -22,6 +22,12 @@ backend-install:
 
 frontend-install:
 	cd frontend && npm install
+
+mytuskers-up:
+	docker compose up -d --build localstack mytuskers-api mytuskers-web
+
+mytuskers-verify:
+	npm run mytuskers:verify
 
 package-lambda:
 	docker compose -f docker-compose.deploy.yml run --rm node "apk add --no-cache zip >/dev/null && rm -rf /tmp/backend-lambda /workspace/build/backend-lambda.zip && mkdir -p /tmp/backend-lambda /workspace/build && cp /workspace/backend/package*.json /tmp/backend-lambda/ && cd /tmp/backend-lambda && npm ci --omit=dev && cp -R /workspace/backend/src /tmp/backend-lambda/src && zip -qr /workspace/build/backend-lambda.zip ."

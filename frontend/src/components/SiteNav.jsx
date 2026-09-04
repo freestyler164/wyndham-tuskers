@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { fetchJson } from '../api.js';
 import logoUrl from '../public/static/logos/wt_logo.png';
 
 const menuItems = [
   { label: 'Home', to: '/' },
+  { label: 'Club News', to: '/club-news' },
+  { label: 'Member Marketplace', to: '/marketplace' },
   { label: 'Gallery', to: '/gallery' },
   { label: 'About Us', to: '/about' },
 ];
@@ -11,12 +14,41 @@ const menuItems = [
 function SiteNav() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [onamMenu, setOnamMenu] = useState(null);
+  const [showPaintingMenu, setShowPaintingMenu] = useState(false);
   const navigate = useNavigate();
   const role = localStorage.getItem('role');
+  const scopes = JSON.parse(localStorage.getItem('scopes') || '[]');
+  const canJudgePainting = role === 'guest' && scopes.includes('painting:judge');
+  const canManageOnamSchedule = role === 'guest' && scopes.includes('onam-schedule:manage');
+
+  useEffect(() => {
+    fetchJson('/config')
+      .then((config) => {
+        setOnamMenu(config.onamSchedulePublished ? {
+          label: config.onamScheduleMenuLabel || 'Onam 2026',
+          to: '/onam-2026',
+        } : null);
+        setShowPaintingMenu(Boolean(config.paintingCompetitionPublic));
+      })
+      .catch(() => {
+        setOnamMenu(null);
+        setShowPaintingMenu(false);
+      });
+  }, []);
+
+  const visibleMenuItems = useMemo(() => {
+    const items = [...menuItems.slice(0, 3)];
+    if (showPaintingMenu) items.push({ label: 'Onam Art', to: '/onam-painting-competition' });
+    if (onamMenu) items.push(onamMenu);
+    return [...items, ...menuItems.slice(3)];
+  }, [onamMenu, showPaintingMenu]);
 
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('role');
+    localStorage.removeItem('scopes');
+    localStorage.removeItem('authExpiresAt');
     setAccountOpen(false);
     setMobileOpen(false);
     navigate('/');
@@ -43,6 +75,8 @@ function SiteNav() {
           <div className="account-dropdown">
             <span className="account-role">{role}</span>
             {role === 'admin' && <Link to="/admin/surveys" onClick={closeMenus}>Admin portal</Link>}
+            {canJudgePainting && <Link to="/admin/painting-competition" onClick={closeMenus}>Painting judging</Link>}
+            {canManageOnamSchedule && <Link to="/admin/onam-schedule" onClick={closeMenus}>Onam scheduler</Link>}
             <button type="button" onClick={logout}>Logout</button>
           </div>
         )}
@@ -76,7 +110,7 @@ function SiteNav() {
       </button>
 
       <nav className="site-nav" aria-label="Main navigation">
-        {menuItems.map((item) => (
+        {visibleMenuItems.map((item) => (
           item.to ? (
             <Link key={item.label} to={item.to} onClick={closeMenus}>{item.label}</Link>
           ) : (
@@ -91,7 +125,7 @@ function SiteNav() {
 
       <div className={`mobile-menu ${mobileOpen ? 'is-open' : ''}`}>
         <nav aria-label="Mobile navigation">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             item.to ? (
               <Link key={item.label} to={item.to} onClick={closeMenus}>{item.label}</Link>
             ) : (

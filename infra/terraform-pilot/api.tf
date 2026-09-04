@@ -15,22 +15,35 @@ resource "aws_lambda_function" "backend" {
 
   environment {
     variables = {
-      NODE_ENV                    = "production"
-      USERS_TABLE                 = aws_dynamodb_table.members.name
-      TOKENS_TABLE                = aws_dynamodb_table.tokens.name
-      SURVEYS_TABLE               = aws_dynamodb_table.surveys.name
-      RESPONSES_TABLE             = aws_dynamodb_table.responses.name
-      EVENTS_TABLE                = aws_dynamodb_table.events.name
-      FRONTEND_URL                = local.app_url
-      CORS_ALLOWED_ORIGINS        = local.allowed_origins
-      EMAIL_PROVIDER              = "resend"
-      EMAIL_FROM                  = var.email_from
-      JWT_SECRET_ID               = aws_secretsmanager_secret.jwt_secret.id
-      RESEND_API_KEY_SECRET_ID    = aws_secretsmanager_secret.resend_api_key.id
-      ENABLE_MEMBER_REGISTRATION  = tostring(var.enable_member_registration)
-      PASSWORD_MIN_LENGTH         = tostring(var.password_min_length)
-      AUTH_RATE_LIMIT_MAX         = tostring(var.auth_rate_limit_max)
-      ENFORCE_HTTPS               = "true"
+      NODE_ENV                           = "production"
+      USERS_TABLE                        = aws_dynamodb_table.members.name
+      TOKENS_TABLE                       = aws_dynamodb_table.tokens.name
+      SURVEYS_TABLE                      = aws_dynamodb_table.surveys.name
+      RESPONSES_TABLE                    = aws_dynamodb_table.responses.name
+      EVENTS_TABLE                       = aws_dynamodb_table.events.name
+      NEWS_TABLE                         = aws_dynamodb_table.news.name
+      MARKETPLACE_TABLE                  = aws_dynamodb_table.marketplace.name
+      GALLERY_TABLE                      = aws_dynamodb_table.gallery.name
+      SETTINGS_TABLE                     = aws_dynamodb_table.settings.name
+      PAINTING_COMPETITION_TABLE         = aws_dynamodb_table.painting_competition.name
+      PAINTING_SUBMISSIONS_TABLE         = aws_dynamodb_table.painting_submissions.name
+      ONAM_SCHEDULE_TABLE                = aws_dynamodb_table.onam_schedule.name
+      PAINTING_ASSETS_BUCKET             = aws_s3_bucket.painting_assets.bucket
+      NEWS_ASSETS_BUCKET                 = aws_s3_bucket.frontend.bucket
+      MARKETPLACE_ASSETS_BUCKET          = aws_s3_bucket.frontend.bucket
+      GALLERY_ASSETS_BUCKET              = aws_s3_bucket.frontend.bucket
+      ONAM_SCHEDULE_ASSETS_BUCKET        = aws_s3_bucket.frontend.bucket
+      FRONTEND_URL                       = local.app_url
+      CORS_ALLOWED_ORIGINS               = local.allowed_origins
+      EMAIL_PROVIDER                     = "resend"
+      EMAIL_FROM                         = var.email_from
+      JWT_SECRET_ID                      = aws_secretsmanager_secret.jwt_secret.id
+      RESEND_API_KEY_SECRET_ID           = aws_secretsmanager_secret.resend_api_key.id
+      ENABLE_MEMBER_REGISTRATION         = tostring(var.enable_member_registration)
+      PASSWORD_MIN_LENGTH                = tostring(var.password_min_length)
+      AUTH_RATE_LIMIT_MAX                = tostring(var.auth_rate_limit_max)
+      PAINTING_SUBMISSION_RATE_LIMIT_MAX = "8"
+      ENFORCE_HTTPS                      = "true"
     }
   }
 

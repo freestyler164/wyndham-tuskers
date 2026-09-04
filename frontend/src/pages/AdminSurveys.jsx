@@ -33,6 +33,25 @@ const formatInterests = (member) => {
   return values?.length ? values.join(', ') : '-';
 };
 
+const formatCsvBoolean = (value) => (value ? 'Yes' : 'No');
+
+const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+const downloadCsv = (filename, headers, rows) => {
+  const csv = [headers, ...rows]
+    .map((row) => row.map(csvCell).join(','))
+    .join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 const buildChart = (totals) => {
   const entries = Object.entries(totals || {});
   const total = entries.reduce((sum, [, count]) => sum + count, 0);
@@ -68,10 +87,14 @@ function AdminSurveys() {
   const [responsesError, setResponsesError] = useState('');
   const [responsesLoading, setResponsesLoading] = useState(false);
   const [showResponses, setShowResponses] = useState(false);
+  const [responseSearch, setResponseSearch] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
   const [memberPage, setMemberPage] = useState(1);
   const [memberPageSize, setMemberPageSize] = useState(25);
   const [selectedRegistration, setSelectedRegistration] = useState(null);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [memberRegistrationSetting, setMemberRegistrationSetting] = useState(null);
+  const [memberRegistrationSaving, setMemberRegistrationSaving] = useState(false);
   const role = localStorage.getItem('role');
 
   const activeSurveys = useMemo(
@@ -103,6 +126,7 @@ function AdminSurveys() {
         member.role,
         member.membershipStatus,
         member.membershipYear,
+        member.referralSource,
         member.previousMember ? 'previous member' : '',
         member.appliedBefore ? 'applied before' : '',
         member.indoorGamesSubscribed ? 'indoor games' : '',
@@ -126,6 +150,120 @@ function AdminSurveys() {
   const memberRangeStart = filteredMembers.length === 0 ? 0 : (memberPage - 1) * memberPageSize + 1;
   const memberRangeEnd = Math.min(memberPage * memberPageSize, filteredMembers.length);
   const formatLocation = (member) => [member.suburb, member.postcode].filter(Boolean).join(' ') || member.address || 'Location not provided';
+
+  const exportPendingRegistrationsCsv = () => {
+    const headers = [
+      'Name',
+      'Email',
+      'Phone',
+      'Suburb',
+      'Postcode',
+      'Family',
+      'Adults',
+      'Kids under 5',
+      'Kids over 5',
+      'Games interested',
+      'Referral source',
+      'Previous member',
+      'Applied before',
+      'Indoor games subscriber',
+      'Onam EOI',
+      'Membership fee disclaimer accepted',
+      'Membership criteria accepted',
+      'Submitted',
+    ];
+
+    const rows = pendingRegistrations.map((member) => [
+      member.fullName,
+      member.email,
+      member.phone,
+      member.suburb,
+      member.postcode,
+      formatFamily(member),
+      member.family?.adults,
+      member.family?.kidsUnder5,
+      member.family?.kidsOver5,
+      formatInterests(member),
+      member.referralSource,
+      formatCsvBoolean(member.previousMember),
+      formatCsvBoolean(member.appliedBefore),
+      formatCsvBoolean(member.indoorGamesSubscribed || member.indoorGamesAlreadyMember),
+      formatCsvBoolean(member.onamEoi),
+      formatCsvBoolean(member.membershipFeeDisclaimerAccepted),
+      formatCsvBoolean(member.membershipCriteriaAccepted),
+      member.createdAt,
+    ]);
+
+    downloadCsv('pending-registrations.csv', headers, rows);
+  };
+
+  const exportMembersCsv = () => {
+    const headers = [
+      'Name',
+      'Email',
+      'Phone',
+      'Address',
+      'Suburb',
+      'Postcode',
+      'Role',
+      'Membership status',
+      'Membership year',
+      'Family',
+      'Adults',
+      'Kids under 5',
+      'Kids over 5',
+      'Games interested',
+      'Referral source',
+      'Previous member',
+      'Applied before',
+      'Indoor games subscriber',
+      'Onam EOI',
+      'Approved or imported',
+      'Updated',
+    ];
+
+    const rows = filteredMembers.map((member) => [
+      member.fullName,
+      member.email,
+      member.phone,
+      member.address,
+      member.suburb,
+      member.postcode,
+      member.role,
+      member.membershipStatus,
+      member.membershipYear,
+      formatFamily(member),
+      member.family?.adults,
+      member.family?.kidsUnder5,
+      member.family?.kidsOver5,
+      formatInterests(member),
+      member.referralSource,
+      formatCsvBoolean(member.previousMember),
+      formatCsvBoolean(member.appliedBefore),
+      formatCsvBoolean(member.indoorGamesSubscribed || member.indoorGamesAlreadyMember),
+      formatCsvBoolean(member.onamEoi),
+      member.approvedAt || member.importedAt || member.createdAt,
+      member.updatedAt,
+    ]);
+
+    downloadCsv('members.csv', headers, rows);
+  };
+
+  const filteredFullResponses = useMemo(() => {
+    const responses = fullResponses?.responses || [];
+    const query = responseSearch.trim().toLowerCase();
+    if (!query) return responses;
+
+    return responses.filter((response) => {
+      const searchable = [
+        response.responseId,
+        response.submittedAt,
+        ...(response.answers || []).map((answer) => answer.value),
+      ].join(' ').toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [fullResponses, responseSearch]);
 
   const loadSurveys = async () => {
     try {
@@ -163,12 +301,22 @@ function AdminSurveys() {
     }
   };
 
+  const loadMemberRegistrationSetting = async () => {
+    try {
+      const data = await fetchJson('/auth/settings/member-registration', { headers: authHeaders() });
+      setMemberRegistrationSetting(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     if (role === 'admin') {
       loadSurveys();
       loadEvents();
       loadPendingRegistrations();
       loadMembers();
+      loadMemberRegistrationSetting();
     }
   }, [role]);
 
@@ -266,6 +414,7 @@ function AdminSurveys() {
     setFullResponses(null);
     setResponsesError('');
     setShowResponses(false);
+    setResponseSearch('');
     setAnalyticsLoading(true);
     try {
       const data = await fetchJson(`/surveys/${surveyId}/analytics`, { headers: authHeaders() });
@@ -283,6 +432,31 @@ function AdminSurveys() {
     try {
       const data = await fetchJson(`/surveys/${surveyId}/responses`, { headers: authHeaders() });
       setFullResponses(data);
+    } catch (err) {
+      setResponsesError(err.message);
+    } finally {
+      setResponsesLoading(false);
+    }
+  };
+
+  const deleteSurveyResponse = async (responseId) => {
+    if (!analytics?.surveyId) return;
+    if (!window.confirm('Delete this response? This cannot be undone.')) return;
+
+    setResponsesError('');
+    setResponsesLoading(true);
+    try {
+      await fetchJson(`/surveys/${analytics.surveyId}/responses/${encodeURIComponent(responseId)}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders() },
+      });
+      const [analyticsData, responsesData] = await Promise.all([
+        fetchJson(`/surveys/${analytics.surveyId}/analytics`, { headers: authHeaders() }),
+        fetchJson(`/surveys/${analytics.surveyId}/responses`, { headers: authHeaders() }),
+      ]);
+      setAnalytics(analyticsData);
+      setFullResponses(responsesData);
+      setMessage('Response deleted.');
     } catch (err) {
       setResponsesError(err.message);
     } finally {
@@ -345,19 +519,22 @@ function AdminSurveys() {
     setResponsesError('');
     setResponsesLoading(false);
     setShowResponses(false);
+    setResponseSearch('');
   };
 
   const approveRegistration = async (email) => {
     setError('');
+    setMessage('');
     try {
-      await fetchJson(`/auth/approve-registration/${encodeURIComponent(email)}`, {
+      const result = await fetchJson(`/auth/approve-registration/${encodeURIComponent(email)}`, {
         method: 'POST',
         headers: { ...authHeaders() },
       });
       loadPendingRegistrations();
       loadMembers();
       setSelectedRegistration(null);
-      setMessage('Registration approved.');
+      if (result.emailSent === false) setError(result.message);
+      else setMessage(result.message || 'Registration approved and welcome email sent.');
     } catch (err) {
       setError(err.message);
     }
@@ -392,6 +569,7 @@ function AdminSurveys() {
       });
       setNewAdminEmail('');
       setNewAdminPassword('');
+      setShowAdminModal(false);
       setMessage('Admin account created successfully.');
       loadMembers();
     } catch (err) {
@@ -413,6 +591,26 @@ function AdminSurveys() {
       loadMembers();
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const updateMemberRegistration = async (enabled) => {
+    setError('');
+    setMessage('');
+    setMemberRegistrationSaving(true);
+
+    try {
+      const data = await fetchJson('/auth/settings/member-registration', {
+        method: 'PATCH',
+        headers: { ...authHeaders() },
+        body: JSON.stringify({ enabled }),
+      });
+      setMemberRegistrationSetting(data);
+      setMessage(`Become a member is now ${data.enabled ? 'enabled' : 'disabled'}.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMemberRegistrationSaving(false);
     }
   };
 
@@ -440,7 +638,18 @@ function AdminSurveys() {
           <h1>Community management</h1>
           <p>Create community forms, track responses, approve requests and manage member details.</p>
         </div>
-        <Link className="btn btn-primary" to="/admin/surveys/new">Create a new form</Link>
+        <div className="admin-heading-actions">
+          <button className="btn btn-secondary" type="button" onClick={() => setShowAdminModal(true)}>
+            Add admin
+          </button>
+          <Link className="btn btn-secondary" to="/admin/news">Manage club news</Link>
+          <Link className="btn btn-secondary" to="/admin/marketplace">Manage marketplace</Link>
+          <Link className="btn btn-secondary" to="/admin/gallery">Manage gallery</Link>
+          <Link className="btn btn-secondary" to="/admin/painting-competition">Manage painting competition</Link>
+          <Link className="btn btn-secondary" to="/admin/onam-schedule">Manage Onam schedule</Link>
+          <Link className="btn btn-secondary" to="/admin/guest-access">Manage guest access</Link>
+          <Link className="btn btn-primary" to="/admin/surveys/new">Create a new form</Link>
+        </div>
       </section>
 
       {(message || error) && (
@@ -449,6 +658,40 @@ function AdminSurveys() {
           {error && <p>{error}</p>}
         </div>
       )}
+
+      <section className="admin-panel member-registration-control">
+        <div className="panel-header">
+          <div>
+            <h2>Become a member</h2>
+            <p>Control whether the public membership application button and form are open.</p>
+          </div>
+          <span className={`status-pill ${memberRegistrationSetting?.enabled ? 'active' : 'inactive'}`}>
+            {memberRegistrationSetting?.enabled ? 'Open' : 'Closed'}
+          </span>
+        </div>
+        <div className="setting-row">
+          <div>
+            <strong>{memberRegistrationSetting?.enabled ? 'Public applications are enabled.' : 'Public applications are disabled.'}</strong>
+            <p className="muted-text">
+              {memberRegistrationSetting?.updatedAt
+                ? `Last updated ${formatDate(memberRegistrationSetting.updatedAt)} by ${memberRegistrationSetting.updatedBy || 'admin'}.`
+                : 'Using the current deployment default until an admin changes it.'}
+            </p>
+          </div>
+          <button
+            className={memberRegistrationSetting?.enabled ? 'btn btn-secondary' : 'btn btn-primary'}
+            type="button"
+            onClick={() => updateMemberRegistration(!memberRegistrationSetting?.enabled)}
+            disabled={!memberRegistrationSetting || memberRegistrationSaving}
+          >
+            {memberRegistrationSaving
+              ? 'Saving...'
+              : memberRegistrationSetting?.enabled
+              ? 'Disable applications'
+              : 'Enable applications'}
+          </button>
+        </div>
+      </section>
 
       <section className="admin-panel">
         <div className="panel-header">
@@ -593,74 +836,64 @@ function AdminSurveys() {
         </div>
       </section>
 
-      <section className="admin-grid">
-        <article className="admin-panel">
-          <div className="panel-header">
-            <div>
-              <h2>Pending registrations</h2>
-              <p>Approve or reject member account requests.</p>
-            </div>
+      <section className="admin-panel pending-admin-panel">
+        <div className="panel-header">
+          <div>
+            <h2>Pending registrations</h2>
+            <p>Approve or reject member account requests.</p>
           </div>
-          {pendingRegistrations.length > 0 ? (
-            <div className="table-wrap pending-table-wrap">
-              <table className="survey-table pending-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Location</th>
-                    <th>Family</th>
-                    <th>Interests</th>
-                    <th>Submitted</th>
-                    <th>Review</th>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={exportPendingRegistrationsCsv}
+            disabled={pendingRegistrations.length === 0}
+          >
+            Export CSV
+          </button>
+        </div>
+        {pendingRegistrations.length > 0 ? (
+          <div className="table-wrap pending-table-wrap">
+            <table className="survey-table pending-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Location</th>
+                  <th>Family</th>
+                  <th>Interests</th>
+                  <th>Submitted</th>
+                  <th>Review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingRegistrations.map((registration) => (
+                  <tr
+                    key={registration.email}
+                    onClick={() => setSelectedRegistration(registration)}
+                    tabIndex="0"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedRegistration(registration);
+                      }
+                    }}
+                  >
+                    <td>
+                      <strong>{registration.fullName || registration.email}</strong>
+                      <span>{registration.email}</span>
+                    </td>
+                    <td>{formatLocation(registration)}</td>
+                    <td>{formatFamily(registration)}</td>
+                    <td>{formatInterests(registration)}</td>
+                    <td>{formatDate(registration.createdAt)}</td>
+                    <td><span className="status-pill pending">Open</span></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {pendingRegistrations.map((registration) => (
-                    <tr
-                      key={registration.email}
-                      onClick={() => setSelectedRegistration(registration)}
-                      tabIndex="0"
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setSelectedRegistration(registration);
-                        }
-                      }}
-                    >
-                      <td>
-                        <strong>{registration.fullName || registration.email}</strong>
-                        <span>{registration.email}</span>
-                      </td>
-                      <td>{formatLocation(registration)}</td>
-                      <td>{formatFamily(registration)}</td>
-                      <td>{formatInterests(registration)}</td>
-                      <td>{formatDate(registration.createdAt)}</td>
-                      <td><span className="status-pill pending">Open</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="muted-text">No pending registrations.</p>
-          )}
-        </article>
-
-        <article className="admin-panel">
-          <div className="panel-header">
-            <div>
-              <h2>Create new admin</h2>
-              <p>Add another administrator account.</p>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <form onSubmit={createAdmin} className="compact-form">
-            <label>Email</label>
-            <input type="email" value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} required />
-            <label>Password</label>
-            <input type="password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} required />
-            <button type="submit" className="btn btn-primary">Create admin account</button>
-          </form>
-        </article>
+        ) : (
+          <p className="muted-text">No pending registrations.</p>
+        )}
       </section>
 
       <section className="admin-panel members-panel">
@@ -669,6 +902,14 @@ function AdminSurveys() {
             <h2>Members</h2>
             <p>Approved member details stored in the members table.</p>
           </div>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={exportMembersCsv}
+            disabled={filteredMembers.length === 0}
+          >
+            Export CSV
+          </button>
         </div>
         <div className="table-toolbar members-toolbar">
           <label className="member-search">
@@ -759,6 +1000,33 @@ function AdminSurveys() {
         </div>
       </section>
 
+      {showAdminModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowAdminModal(false)}>
+          <section className="analytics-modal admin-create-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <div className="modal-brand">
+                  <img src={logoUrl} alt="" />
+                  <p className="eyebrow">Admin access</p>
+                </div>
+                <h2>Create new admin</h2>
+                <p className="muted-text">Add another administrator account with a strong password.</p>
+              </div>
+              <button className="btn btn-ghost" type="button" onClick={() => setShowAdminModal(false)}>
+                Close
+              </button>
+            </div>
+            <form onSubmit={createAdmin} className="compact-form admin-create-form">
+              <label>Email</label>
+              <input type="email" value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} required />
+              <label>Password</label>
+              <input type="password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} required />
+              <button type="submit" className="btn btn-primary">Create admin account</button>
+            </form>
+          </section>
+        </div>
+      )}
+
       {selectedRegistration && (
         <div className="modal-backdrop" role="presentation" onClick={() => setSelectedRegistration(null)}>
           <section className="analytics-modal registration-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
@@ -808,6 +1076,10 @@ function AdminSurveys() {
               <article>
                 <span>Games interested</span>
                 <strong>{formatInterests(selectedRegistration)}</strong>
+              </article>
+              <article>
+                <span>Heard about us / referred by</span>
+                <strong>{selectedRegistration.referralSource || '-'}</strong>
               </article>
               <article>
                 <span>Previous member</span>
@@ -939,6 +1211,17 @@ function AdminSurveys() {
                         <p>Every submitted answer for this form.</p>
                       </div>
                     </div>
+                    <div className="table-toolbar response-toolbar">
+                      <label className="member-search response-search">
+                        <span>Search responses</span>
+                        <input
+                          type="search"
+                          value={responseSearch}
+                          onChange={(event) => setResponseSearch(event.target.value)}
+                          placeholder="Name, mobile, answer..."
+                        />
+                      </label>
+                    </div>
                     {responsesLoading && <p className="muted-text">Loading full responses...</p>}
                     {fullResponses && (
                       <div className="table-wrap response-table-wrap">
@@ -949,10 +1232,11 @@ function AdminSurveys() {
                               {fullResponses.questions.map((question) => (
                                 <th key={question.id}>{question.text}</th>
                               ))}
+                              <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {fullResponses.responses.map((response) => (
+                            {filteredFullResponses.map((response) => (
                               <tr key={response.responseId}>
                                 <td>{formatDate(response.submittedAt)}</td>
                                 {response.answers.map((answer) => (
@@ -960,11 +1244,23 @@ function AdminSurveys() {
                                     {answer.value || '-'}
                                   </td>
                                 ))}
+                                <td>
+                                  <button
+                                    className="btn btn-ghost"
+                                    type="button"
+                                    onClick={() => deleteSurveyResponse(response.responseId)}
+                                    disabled={responsesLoading}
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
                               </tr>
                             ))}
-                            {fullResponses.responses.length === 0 && (
+                            {filteredFullResponses.length === 0 && (
                               <tr>
-                                <td colSpan={fullResponses.questions.length + 1}>No responses submitted yet.</td>
+                                <td colSpan={fullResponses.questions.length + 2}>
+                                  {fullResponses.responses.length === 0 ? 'No responses submitted yet.' : 'No responses match your search.'}
+                                </td>
                               </tr>
                             )}
                           </tbody>
